@@ -1,0 +1,30 @@
+* src 폴더
+- 순수하게 애플리케이션의 로직과 UI를 구성하는 소스 코드가 들어갑니다. 이 파일들은 최종적으로 브라우저가 이해할 수 있는 형태(HTML, CSS, JS)로 변환(컴파일/번들링)되는 대상
+
+* public 폴더
+- 변환 과정 없이 그대로 복사되어야 하는 정적 자원
+
+* 루트(root)의 설정 파일
+- 프로젝트 자체를 정의하고, 설정하고, 관리하기 위한 파일
+
+* package.json
+- Node.js 기반 프로젝트의 설정 명세서와 같습니다. 프로젝트에 대한 모든 메타데이터와 의존성을 관리
+name, version, description: 프로젝트의 이름, 버전, 설명 등 기본 정보 (현재 metadata.json에 있는 내용이 여기)
+dependencies: 실제 애플리케이션이 실행될 때 필요한 라이브러리 목록 (예: react, react-dom, @google/genai)
+devDependencies: 개발 과정에서만 필요한 라이브러리 목록 (예: typescript, @types/react, tailwindcss)
+scripts: npm start, npm run build 와 같이 터미널에서 사용할 수 있는 명령어들을 정의하는 곳
+
+* package-lock.json
+- npm install을 실행했을 때, node_modules에 설치된 모든 라이브러리들의 정확한 버전과 그 하위 의존성 정보까지 모두 기록하는 파일
+- 이 파일 덕분에 다른 개발자가 이 프로젝트를 받아서 npm install을 실행해도, 나와 완벽하게 동일한 버전의 라이브러리들이 설치됩니다. 이는 "제 컴퓨터에서는 잘 됐는데..." 하는 문제를 방지해주는 매우 중요한 역할
+
+* .gitignore
+- 버전 관리 시스템인 Git에게 "이 파일(또는 폴더)들은 추적하지 말고 무시해" 라고 알려주는 목록 파일
+
+* tsconfig.json
+- 타입스크립트 프로젝트의 컴파일러 설정 파일
+- .ts나 .tsx 파일을 자바스크립트로 변환할 때 어떤 규칙을 따를지 상세하게 정의
+target: 어떤 버전의 자바스크립트로 컴파일할지 (예: ES6).
+jsx: JSX 문법을 어떻게 처리할지 (예: react-jsx).
+strict: 타입 검사를 얼마나 엄격하게 할지.
+paths: 모듈 경로에 대한 별칭을 설정할 수 있습니다. (예: @components/* -> src/components/*)

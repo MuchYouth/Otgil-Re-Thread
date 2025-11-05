@@ -1,0 +1,7 @@
+{
+  "name": "옷길 (Ot-gil): Sustainable Clothing Exchange",
+  "description": "A digital platform for exchanging clothes to promote a sustainable lifestyle. It allows users to list their pre-loved garments, discover new ones, and track the positive environmental impact of their participation.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
