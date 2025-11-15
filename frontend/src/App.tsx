@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Page, User, ClothingItem, ImpactStats, Story, Credit, Reward, PerformanceReport, Comment, Party, Maker, MakerProduct, PartyParticipantStatus, GoodbyeTag, HelloTag } from './types';
+import { Page, User, ClothingItem, ImpactStats, Story, Credit, Reward, PerformanceReport, Comment, Party, Maker, MakerProduct, PartyParticipantStatus, GoodbyeTag, HelloTag, ClothingCategory } from './types';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import HomePage from './pages/HomePage';
@@ -19,7 +19,6 @@ import BrowsePage from './pages/BrowsePage';
 import NeighborsClosetPage from './pages/NeighborsClosetPage';
 import NeighborProfilePage from './pages/NeighborProfilePage';
 import { IMPACT_FACTORS } from './constants';
-import { ClothingInfo } from './services/geminiService';
 
 // Mock Data
 const MOCK_USERS_DATA: User[] = [
@@ -249,7 +248,13 @@ const App: React.FC = () => {
     };
     
     const handleItemAdd = (
-        itemInfo: Omit<ClothingInfo, 'description'> & { description: string, size: string, imageUrl: string },
+        itemInfo: {
+            name: string;
+            description: string;
+            category: ClothingCategory;
+            size: string;
+            imageUrl: string;
+        },
         options: {
             goodbyeTag?: GoodbyeTag;
             helloTag?: HelloTag;

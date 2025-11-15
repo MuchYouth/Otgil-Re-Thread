@@ -1,0 +1,6 @@
+# OS 생성 파일
+.DS_Store
+
+# IDE 설정
+.vscode/
+.idea/

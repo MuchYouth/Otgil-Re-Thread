@@ -1,8 +1,10 @@
+
 import React, { useState, useMemo } from 'react';
 import { Party, Page, User, ClothingItem } from '../types';
 import ClothingCard from '../components/ClothingCard';
 import GoodbyeTagModal from '../components/GoodbyeTagModal';
 import HelloTagModal from '../components/HelloTagModal';
+import RetailInfoModal from '../components/RetailInfoModal';
 
 interface TwentyOnePercentPartyPageProps {
   parties: Party[];

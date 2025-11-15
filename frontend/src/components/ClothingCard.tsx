@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { ClothingItem } from '../types';
 
@@ -22,21 +23,22 @@ const ClothingCard: React.FC<ClothingItemProps> = ({ item, onShowTag }) => {
 
             {/* Back of the card - Simple Info */}
             <div className="absolute inset-0 h-full w-full rounded-xl bg-white p-6 [transform:rotateY(180deg)] [backface-visibility:hidden] flex flex-col justify-between">
-                <div className="text-center flex flex-col justify-center h-full">
+                <div className="text-center flex flex-col h-full">
                      <span className="inline-block bg-brand-secondary/50 text-brand-primary-dark text-xs font-bold px-3 py-1 rounded-full mb-3 uppercase tracking-wide">
                        {item.category}
                    </span>
-                   <h3 className="text-2xl font-bold text-brand-text mb-2">{item.name}</h3>
-                   <p className="text-brand-text/70 text-lg">사이즈: {item.size}</p>
-                   <p className="text-brand-text/80 my-4 text-sm flex-grow overflow-y-auto text-left">{item.description}</p>
+                   <h3 className="text-xl font-bold text-brand-text mb-2">{item.name}</h3>
+                   <p className="text-brand-text/70">사이즈: {item.size}</p>
+                   <p className="text-brand-text/80 my-2 text-sm flex-grow overflow-y-auto text-left">{item.description}</p>
                    
-                   {item.helloTag ? (
+                   <div className="mt-auto space-y-2">
+                    {item.helloTag ? (
                        <button
                            onClick={(e) => {
                                e.stopPropagation(); 
                                onShowTag(item, 'hello');
                            }}
-                           className="w-full bg-brand-secondary text-white font-bold py-3 px-4 rounded-full hover:bg-brand-secondary-dark transition-colors mt-auto"
+                           className="w-full bg-brand-secondary text-white font-bold py-2.5 px-4 rounded-full hover:bg-brand-secondary-dark transition-colors"
                        >
                            HELLO 태그 확인하기
                        </button>
@@ -46,11 +48,12 @@ const ClothingCard: React.FC<ClothingItemProps> = ({ item, onShowTag }) => {
                                 e.stopPropagation(); 
                                 onShowTag(item, 'goodbye');
                             }}
-                            className="w-full bg-brand-primary text-white font-bold py-3 px-4 rounded-full hover:bg-brand-primary-dark transition-colors mt-auto"
+                            className="w-full bg-brand-primary text-white font-bold py-2.5 px-4 rounded-full hover:bg-brand-primary-dark transition-colors"
                         >
                             GOODBYE 태그 확인하기
                         </button>
                    )}
+                   </div>
                 </div>
             </div>
         </div>

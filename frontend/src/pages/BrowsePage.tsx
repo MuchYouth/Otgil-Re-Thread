@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { ClothingItem, Party } from '../types';
 import ClothingCard from '../components/ClothingCard';
@@ -8,6 +9,7 @@ interface BrowsePageProps {
   items: ClothingItem[];
   parties: Party[];
 }
+
 
 const BrowsePage: React.FC<BrowsePageProps> = ({ items, parties }) => {
     const [selectedFilter, setSelectedFilter] = useState<string>('ALL'); // 'ALL' or a party.id

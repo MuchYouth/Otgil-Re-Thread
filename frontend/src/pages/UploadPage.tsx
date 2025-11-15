@@ -1,11 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { generateClothingInfo, ClothingInfo } from '../services/geminiService';
 import { ClothingCategory, Party, GoodbyeTag, HelloTag } from '../types';
-import Spinner from '../components/Spinner';
 
 interface UploadPageProps {
   onItemAdd: (
-    item: Omit<ClothingInfo, 'description'> & { description: string, size: string, imageUrl: string },
+    item: { name: string, description: string, category: ClothingCategory, size: string, imageUrl: string },
     options: {
         goodbyeTag?: GoodbyeTag;
         helloTag?: HelloTag;
@@ -22,7 +20,6 @@ const UploadPage: React.FC<UploadPageProps> = ({ onItemAdd, acceptedParties }) =
   const [size, setSize] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -58,41 +55,6 @@ const UploadPage: React.FC<UploadPageProps> = ({ onItemAdd, acceptedParties }) =
       };
       reader.readAsDataURL(file);
       setError(null);
-    }
-  };
-
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => {
-            if (typeof reader.result === 'string') {
-                resolve(reader.result.split(',')[1]);
-            } else {
-                reject(new Error('Failed to read file as string'));
-            }
-        };
-        reader.onerror = error => reject(error);
-    });
-  };
-
-  const handleAnalyzeImage = async () => {
-    if (!imageFile) {
-      setError('먼저 이미지를 선택해주세요.');
-      return;
-    }
-    setIsLoading(true);
-    setError(null);
-    try {
-      const base64Image = await fileToBase64(imageFile);
-      const info = await generateClothingInfo(base64Image);
-      setName(info.name);
-      setDescription(info.description);
-      setCategory(info.category);
-    } catch (err) {
-      setError((err as Error).message || "이미지 분석 중 오류가 발생했습니다.");
-    } finally {
-        setIsLoading(false);
     }
   };
 
@@ -152,14 +114,6 @@ const UploadPage: React.FC<UploadPageProps> = ({ onItemAdd, acceptedParties }) =
                   </div>
                 )}
               </div>
-              <button
-                  type="button"
-                  onClick={handleAnalyzeImage}
-                  disabled={!imageFile || isLoading}
-                  className="mt-4 w-full bg-brand-primary text-white font-bold py-2 px-4 rounded-full hover:bg-brand-primary-dark transition-colors disabled:bg-stone-300 disabled:cursor-not-allowed flex items-center justify-center"
-              >
-                  {isLoading ? <Spinner size="sm" /> : <><i className="fa-solid fa-wand-magic-sparkles mr-2"></i>AI로 분석하기</>}
-              </button>
             </div>
             <div className="space-y-4">
               <div>
