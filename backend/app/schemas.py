@@ -16,6 +16,7 @@ Admin 스키마: Admin용 통계 스키마(AdminOverallStats 등)는 데이터�
 # app/schemas.py
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, computed_field
 import datetime
 import enum
 
@@ -212,10 +213,24 @@ class StoryResponse(StoryBase):
     user_id: str
     party_id: str
     author: str
-    likes: int
-    liked_by: List[str]
-    
     tags: List[TagResponse] = []
+    # likers 관계(relationship)로부터 'likes' 필드를 계산
+    @computed_field
+    @property
+    def likes(self) -> int:
+        # crud.get_story가 'likers'를 로드했을 때만 작동
+        if hasattr(self, 'likers'):
+            return len(self.likers)
+        return 0
+
+    #'likers' 관계로부터 'liked_by' 필드(user_id 리스트)를 계산
+    @computed_field
+    @property
+    def liked_by(self) -> List[str]:
+        # crud.get_story가 'likers'를 로드했을 때만 작동
+        if hasattr(self, 'likers'):
+            return [user.id for user in self.likers]
+        return []
 
     class Config:
         from_attributes = True # v2 변경: orm_mode -> from_attributes

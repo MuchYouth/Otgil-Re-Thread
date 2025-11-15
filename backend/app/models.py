@@ -84,7 +84,7 @@ class User(Base):
     email = Column(String, unique=True, nullable=False)
     phone_number = Column(String, nullable=True)
     is_admin = Column(Boolean, default=False)
-    
+    hashed_password = Column(String, nullable=False)
     # Relationships
     # `neighbors` (self-referential many-to-many)
     neighbors = relationship(

@@ -11,8 +11,8 @@ from app.database import Base, engine
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="21% Party API",
-    description="지속가능한 의류 교환을 위한 API 서버",
+    title="ot-gil",
+    description="지속가능한 의류 교환을 위한 플랫폼",
     version="1.0.0",
 )
 

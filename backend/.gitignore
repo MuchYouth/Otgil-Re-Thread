@@ -1,0 +1,59 @@
+# --- 가상 환경 (Virtual Environment) ---
+# 가장 중요! 가상 환경 폴더 자체는 절대 올리지 않습니다.
+# 로그에서 'venv'를 사용하시는 것을 확인했습니다.
+venv/
+.venv/
+env/
+.env/
+*.env
+
+# --- 민감 정보 (Secrets) ---
+# .env 파일은 DB 접속 정보, API 키 등 민감 정보를 포함합니다.
+# .env.example (설정 예시) 파일은 올려도 됩니다.
+.env
+.env.*
+!*.env.example
+!*.env.template
+
+# --- 파이썬 캐시 및 부산물 ---
+# 컴파일된 파이썬 파일
+*.pyc
+*.pyo
+*.pyd
+
+# 캐시 폴더
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+
+# --- IDE 및 편집기 설정 ---
+# VSCode
+.vscode/
+# (단, 팀원 간 설정을 공유하려면 !.vscode/settings.json 등을 추가)
+
+# PyCharm
+.idea/
+
+# --- 운영체제 (OS) 파일 ---
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# --- 빌드 및 배포 관련 ---
+build/
+dist/
+*.egg-info/
+wheelhouse/
+pip-wheel-metadata/
+
+# --- 로그 파일 ---
+*.log
+logs/
+
+# --- 데이터베이스 파일 (선택적) ---
+# 로컬 테스트용 SQLite DB 파일 (필요시)
+*.sqlite3
+*.db
