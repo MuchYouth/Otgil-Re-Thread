@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Page, User, ClothingItem, ImpactStats, Story, Credit, Reward, PerformanceReport, Comment, Party, Maker, MakerProduct, PartyParticipantStatus, GoodbyeTag, HelloTag, ClothingCategory } from './types';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -19,6 +19,7 @@ import BrowsePage from './pages/BrowsePage';
 import NeighborsClosetPage from './pages/NeighborsClosetPage';
 import NeighborProfilePage from './pages/NeighborProfilePage';
 import { IMPACT_FACTORS } from './constants';
+import { fetchClothingItems, fetchParties, fetchUsers } from './api/service';
 
 // Mock Data
 const MOCK_USERS_DATA: User[] = [
@@ -177,20 +178,56 @@ const MOCK_ADMIN_CODE = 'OTGIL-ADMIN-2024';
 
 const App: React.FC = () => {
     const [page, setPage] = useState<Page>(Page.HOME);
-    const [users, setUsers] = useState<User[]>(MOCK_USERS_DATA);
-    const [currentUser, setCurrentUser] = useState<User | null>(users[0]); // Initially logged in for demo
-    const [clothingItems, setClothingItems] = useState<ClothingItem[]>(MOCK_CLOTHING_ITEMS);
+    const [users, setUsers] = useState<User[]>([]);
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [clothingItems, setClothingItems] = useState<ClothingItem[]>([]);
     const [stories, setStories] = useState<Story[]>(MOCK_STORIES_DATA);
     const [comments, setComments] = useState<Comment[]>(MOCK_COMMENTS);
     const [reports, setReports] = useState<PerformanceReport[]>(MOCK_REPORTS);
     const [credits, setCredits] = useState<Credit[]>(MOCK_CREDITS);
     const [makers, setMakers] = useState<Maker[]>(MOCK_MAKERS);
     const [makerProducts, setMakerProducts] = useState<MakerProduct[]>(MOCK_MAKER_PRODUCTS);
-    const [parties, setParties] = useState<Party[]>(MOCK_PARTIES);
-    
+    const [parties, setParties] = useState<Party[]>([]);
+
+    const [isLoadingData, setIsLoadingData] = useState<boolean>(false);
+    const [dataError, setDataError] = useState<string | null>(null);
     const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
     const [selectedPartyId, setSelectedPartyId] = useState<string | null>(null);
     const [selectedNeighborId, setSelectedNeighborId] = useState<string | null>(null);
+
+    useEffect(() => {
+        const loadDataFromApi = async () => {
+            setIsLoadingData(true);
+            setDataError(null);
+            try {
+                const [usersResponse, itemsResponse, partiesResponse] = await Promise.all([
+                    fetchUsers(),
+                    fetchClothingItems(),
+                    fetchParties(),
+                ]);
+
+                const resolvedUsers = usersResponse?.length ? usersResponse : MOCK_USERS_DATA;
+                const resolvedItems = itemsResponse?.length ? itemsResponse : MOCK_CLOTHING_ITEMS;
+                const resolvedParties = partiesResponse?.length ? partiesResponse : MOCK_PARTIES;
+
+                setUsers(resolvedUsers);
+                setCurrentUser(prev => prev ?? (resolvedUsers.length ? resolvedUsers[0] : null));
+                setClothingItems(resolvedItems);
+                setParties(resolvedParties);
+            } catch (error) {
+                console.error('Failed to load data from API', error);
+                setDataError('API 데이터를 불러오지 못했습니다. 대신 목업 데이터를 사용합니다.');
+                setUsers(MOCK_USERS_DATA);
+                setCurrentUser(prev => prev ?? (MOCK_USERS_DATA.length ? MOCK_USERS_DATA[0] : null));
+                setClothingItems(MOCK_CLOTHING_ITEMS);
+                setParties(MOCK_PARTIES);
+            } finally {
+                setIsLoadingData(false);
+            }
+        };
+
+        loadDataFromApi();
+    }, []);
 
 
     const handleLogin = (email: string): boolean => {
@@ -709,6 +746,12 @@ const App: React.FC = () => {
         <div className="flex flex-col min-h-screen bg-brand-background">
             <Header currentPage={page} setPage={setPage} user={currentUser} onLogout={handleLogout} />
             <main className="flex-grow">
+                {isLoadingData && (
+                    <p className="p-4 text-center text-sm text-gray-600">백엔드 API에서 데이터를 불러오는 중입니다...</p>
+                )}
+                {dataError && (
+                    <p className="px-4 py-2 text-center text-sm text-red-700 bg-red-50">{dataError}</p>
+                )}
                 {renderPage()}
             </main>
             <Footer />
