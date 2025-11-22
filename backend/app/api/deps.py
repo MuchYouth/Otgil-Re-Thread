@@ -34,6 +34,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
 
 def get_current_user(
     db: Session = Depends(get_db), 
+    # 인증 토큰 추출
     token: str = Depends(oauth2_scheme)
 ) -> User:
     """

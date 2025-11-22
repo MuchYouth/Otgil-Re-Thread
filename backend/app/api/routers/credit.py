@@ -6,6 +6,15 @@ from app.api.deps import get_db, get_current_user
 from app.schemas import CreditResponse, RewardResponse
 from app.models import User
 from app.crud import credit as crud_credit, reward as crud_reward
+from pydantic import BaseModel
+
+# schemas.UserCreditBalanceResponse가 없을 수 있으니 안전하게 fallback 정의
+try:
+    from app.schemas import UserCreditBalanceResponse  # type: ignore
+except Exception:
+    class UserCreditBalanceResponse(BaseModel):
+        user_id: str
+        balance: int
 
 router = APIRouter()
 
@@ -16,9 +25,10 @@ router = APIRouter()
 
 @router.get(
     "/my-balance", 
-    # response_model=UserCreditBalanceResponse,
+    response_model=UserCreditBalanceResponse,
     summary="내 크레딧 잔액 조회"
 )
+# 필요한 리소스 명시
 def read_my_credit_balance(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -27,6 +37,7 @@ def read_my_credit_balance(
     현재 인증된 사용자의 크레딧 잔액을 조회합니다.
     (크레딧 내역을 합산하는 로직 필요)
     """
+    # 크래딧 갯수 확인하는 함수에서 user_id에 해당하는 매개변수에 현재 인증된 사용자의 id 전달
     balance = crud_credit.get_user_credit_balance(db, user_id=current_user.id)
     return {"user_id": current_user.id, "balance": balance}
 
@@ -46,6 +57,37 @@ def read_my_credit_history(
     credits = crud_credit.get_credits_by_user(db, user_id=current_user.id)
     return credits
 
+@router.delete(
+    "/{credit_id}",
+    status_code=status.HTTP_204_NO_CONTENT, # 성공적으로 삭제 시 일반적으로 204 반환
+    summary="특정 ID의 크레딧 기록 삭제"
+)
+def delete_credit(
+    credit_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user) # 사용자 인증 필수
+):
+    """
+    인증된 사용자가 소유한 특정 크레딧 기록을 영구적으로 삭제합니다.
+    """
+    user_id = current_user.id
+    
+    try:
+        crud_credit.delete_credit_record(db, credit_id, user_id)
+        db.commit() # 최종적으로 삭제를 데이터베이스에 반영
+        
+    except HTTPException:
+        # 404와 같은 의도된 예외는 그대로 다시 발생
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"크레딧 삭제 트랜잭션 실패: {e}"
+        )
+        
+    # HTTP 204 No Content는 응답 본문이 없어야 함
+    return
 
 @router.get(
     "/rewards", 
@@ -62,3 +104,60 @@ def read_rewards(
     return rewards
 
 # ... (리워드 교환 신청, 크레딧 소각 등 라우터) ...
+@router.post(
+    "/exchange/{reward_id}",
+    status_code=status.HTTP_200_OK,
+    summary="크레딧을 사용하여 굿즈 교환 (FIFO 차감 및 재고 감소)"
+)
+def exchange_reward_with_credits(
+    reward_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    user_id = current_user.id
+    
+    # ---------------------------------------------------
+    # 1. 굿즈(Reward) 및 재고 확인
+    # ---------------------------------------------------
+    reward = crud_reward.get_reward_by_id(db=db, reward_id=reward_id)
+    
+    if not reward:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="굿즈를 찾을 수 없습니다.")
+    
+    cost = reward.cost
+
+    # 재고 감소(메모리) 및 선검증
+    reward.stock -= 1
+    if reward.stock < 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="재고가 부족합니다.")
+    
+    # ---------------------------------------------------
+    # 2. 잔액 확인 (선행 검증)
+    # ---------------------------------------------------
+    current_balance = crud_credit.get_user_credit_balance(db=db, user_id=user_id)
+    
+    if current_balance < cost:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"잔액 부족: {cost} 크레딧이 필요합니다. 현재 잔액: {current_balance}")
+    
+    # ---------------------------------------------------
+    # 3. 트랜잭션: FIFO 차감 계획 수립 및 재고 저장
+    # ---------------------------------------------------
+    try:
+        # FIFO 소비 계획 생성(명명 인자로 호출해서 오류 가능성 최소화)
+        crud_credit.get_fifo_consumption_plan(db=db, user_id=user_id, cost=cost)
+
+        # 재고 변경을 DB에 반영(간단한 저장)
+        db.add(reward)
+        db.commit()
+    except HTTPException:
+        # 의도된 예외는 그대로 통과
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"교환 처리 중 오류 발생: {e}"
+        )
+
+    return {"detail": "교환 신청이 접수되었습니다."}

@@ -173,6 +173,13 @@ class CreditResponse(CreditBase):
     class Config:
         from_attributes = True # v2 변경: orm_mode -> from_attributes
 
+class UserCreditBalanceResponse(BaseModel):
+    user_id: str
+    balance: int
+
+    class Config:
+        from_attributes = True
+
 
 # --- Tag Schemas (for Story) ---
 
