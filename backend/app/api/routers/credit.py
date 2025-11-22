@@ -3,18 +3,9 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.api.deps import get_db, get_current_user
-from app.schemas import CreditResponse, RewardResponse
+from app.schemas import CreditResponse, RewardResponse, UserCreditBalanceResponse
 from app.models import User
 from app.crud import credit as crud_credit, reward as crud_reward
-from pydantic import BaseModel
-
-# schemas.UserCreditBalanceResponse가 없을 수 있으니 안전하게 fallback 정의
-try:
-    from app.schemas import UserCreditBalanceResponse  # type: ignore
-except Exception:
-    class UserCreditBalanceResponse(BaseModel):
-        user_id: str
-        balance: int
 
 router = APIRouter()
 
@@ -119,14 +110,19 @@ def exchange_reward_with_credits(
     # ---------------------------------------------------
     # 1. 굿즈(Reward) 및 재고 확인
     # ---------------------------------------------------
-    reward = crud_reward.get_reward_by_id(db=db, reward_id=reward_id)
+    reward = crud_reward.get_reward_by_id(db, reward_id=reward_id)
     
     if not reward:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="굿즈를 찾을 수 없습니다.")
     
     cost = reward.cost
+    
+    # 굿즈를 id로 조회하는 방식으로하려면
+    # id가 유니크하기 때문에 항상 1개만 조회됨
+    # 현재 reward 모델에는 재고 수량 필드가 없음
+    # reward 모델에 참조해서 재고를 파악할 만한 필드가 존재하지 않아서
+    # 재고 수량 필드가 있다고 가정하고 진행
 
-    # 재고 감소(메모리) 및 선검증
     reward.stock -= 1
     if reward.stock < 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="재고가 부족합니다.")
@@ -134,30 +130,12 @@ def exchange_reward_with_credits(
     # ---------------------------------------------------
     # 2. 잔액 확인 (선행 검증)
     # ---------------------------------------------------
-    current_balance = crud_credit.get_user_credit_balance(db=db, user_id=user_id)
+    current_balance = crud_credit.get_user_credit_balance(db, user_id=user_id)
     
     if current_balance < cost:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"잔액 부족: {cost} 크레딧이 필요합니다. 현재 잔액: {current_balance}")
     
-    # ---------------------------------------------------
-    # 3. 트랜잭션: FIFO 차감 계획 수립 및 재고 저장
-    # ---------------------------------------------------
-    try:
-        # FIFO 소비 계획 생성(명명 인자로 호출해서 오류 가능성 최소화)
-        crud_credit.get_fifo_consumption_plan(db=db, user_id=user_id, cost=cost)
 
-        # 재고 변경을 DB에 반영(간단한 저장)
-        db.add(reward)
-        db.commit()
-    except HTTPException:
-        # 의도된 예외는 그대로 통과
-        db.rollback()
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"교환 처리 중 오류 발생: {e}"
-        )
+    # 3. 획득한지 오래된 크레딧부터 cost만큼 차감
 
-    return {"detail": "교환 신청이 접수되었습니다."}
+    crud_credit.get_fifo_consumption_plan(db, user_id, cost)
