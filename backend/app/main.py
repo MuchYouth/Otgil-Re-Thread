@@ -38,7 +38,8 @@ app.include_router(item.router, prefix="/items", tags=["2. Items"])
 app.include_router(party.router, prefix="/parties", tags=["3. Parties"])
 app.include_router(community.router, prefix="/community", tags=["4. Community"])
 app.include_router(maker.router, prefix="/makers", tags=["5. Makers"])
-app.include_router(credit.router, prefix="/credits", tags=["6. Credits & Rewards"])
+# credit 중복정의 되어있어서 뺐어요
+#app.include_router(credit.router, prefix="/credits", tags=["6. Credits & Rewards"])
 app.include_router(admin.router, prefix="/admin", tags=["7. Admin"])
 # 크레딧 관련 엔드포인트 -> /credits/my-balance, /credits/my-history
 app.include_router(credit.router, prefix="/credits", tags=["credits"])
