@@ -6,7 +6,7 @@ from app.api.routers import user, item, party, community, maker, credit, admin,r
 
 # 가정: app/database.py에 Base와 engine이 정의되어 있음
 from app.database import Base, engine
-import app.models
+from app import models
 
 # 애플리케이션 시작 시 데이터베이스 테이블 생성 (개발용)
 Base.metadata.create_all(bind=engine)
@@ -16,7 +16,11 @@ app = FastAPI(
     description="지속가능한 의류 교환을 위한 플랫폼",
     version="1.0.0",
 )
-
+origins = [
+    "http://localhost:3000", # 리액트/뷰 프론트엔드 개발 서버 주소
+    "http://127.0.0.1:3000",
+    # "https://your-frontend-domain.com" # 나중에 배포하면 실제 도메인 추가
+]
 # --- 미들웨어 설정 ---
 # CORS (Cross-Origin Resource Sharing) 설정
 app.add_middleware(

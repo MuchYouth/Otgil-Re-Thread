@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { Page } from '../types';
 
 interface SignUpPageProps {
+    // onSignUp은 이제 사용하지 않지만, 타입 호환성을 위해 남겨두거나 제거해도 됩니다.
     onSignUp: (nickname: string, email: string, phoneNumber: string, userType: 'USER' | 'ADMIN', adminCode: string) => { success: boolean, message: string };
     setPage: (page: Page) => void;
 }
 
-const SignUpPage: React.FC<SignUpPageProps> = ({ onSignUp, setPage }) => {
+const SignUpPage: React.FC<SignUpPageProps> = ({ setPage }) => {
     const [nickname, setNickname] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -25,14 +26,14 @@ const SignUpPage: React.FC<SignUpPageProps> = ({ onSignUp, setPage }) => {
             setPhoneError('올바른 휴대폰 번호를 입력해주세요.');
             return;
         }
-        // Mock API call
+        // 실제 SMS 발송 로직은 나중에 구현
         console.log(`Sending verification code to ${phoneNumber}`);
         setPhoneError('');
         setIsCodeSent(true);
+        alert(`[테스트용] 인증번호는 123456 입니다.`); // 테스트 편의를 위해 알림 추가
     };
 
     const handleVerifyCode = () => {
-        // Mock verification
         if (verificationCode === '123456') {
             setPhoneError('');
             setIsPhoneVerified(true);
@@ -44,24 +45,59 @@ const SignUpPage: React.FC<SignUpPageProps> = ({ onSignUp, setPage }) => {
     };
 
 
-    const handleSubmit = (e: React.FormEvent) => {
+    // [핵심 수정] 진짜 회원가입 요청을 보내는 함수
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+
+        // 1. 유효성 검사
         if (!nickname || !email || !password) {
             setError('필수 항목을 모두 입력해주세요.');
             return;
         }
-        if (!isPhoneVerified) {
-            setError('휴대폰 번호 인증을 먼저 완료해주세요.');
-            return;
-        }
+        // 테스트 중에는 휴대폰 인증이 귀찮을 수 있으니 일단 주석 처리하거나 유지
+        // if (!isPhoneVerified) {
+        //     setError('휴대폰 번호 인증을 먼저 완료해주세요.');
+        //     return;
+        // }
         if (userType === 'ADMIN' && !adminCode) {
             setError('관리자 코드를 입력해주세요.');
             return;
         }
-        const result = onSignUp(nickname, email, phoneNumber, userType, adminCode);
-        if (!result.success) {
-            setError(result.message);
+
+        try {
+            // 2. 백엔드로 보낼 데이터 준비 (JSON 형식)
+            const signupData = {
+                email: email,
+                nickname: nickname,
+                password: password,
+                phone_number: phoneNumber,
+                // userType이나 adminCode는 백엔드 스키마에 아직 없다면 무시될 수 있음
+            };
+
+            // 3. 백엔드 API 호출 (POST /users/signup)
+            const response = await fetch("http://localhost:8000/users/signup", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json", // JSON으로 보낸다고 명시
+                },
+                body: JSON.stringify(signupData),
+            });
+
+            // 4. 응답 처리
+            if (!response.ok) {
+                const errorData = await response.json();
+                // 백엔드에서 보낸 에러 메시지("이미 사용 중인 이메일입니다" 등)를 화면에 표시
+                throw new Error(errorData.detail || "회원가입에 실패했습니다.");
+            }
+
+            // 5. 성공 시 처리
+            alert("회원가입이 성공적으로 완료되었습니다! 로그인 해주세요.");
+            setPage(Page.LOGIN); // 로그인 페이지로 이동
+
+        } catch (err: any) {
+            console.error("Signup error:", err);
+            setError(err.message || "서버 통신 중 오류가 발생했습니다.");
         }
     };
 
@@ -117,7 +153,7 @@ const SignUpPage: React.FC<SignUpPageProps> = ({ onSignUp, setPage }) => {
                         <label htmlFor="phone" className="block text-sm font-medium text-brand-text">휴대폰 번호 인증</label>
                         <div className="flex gap-2">
                             <input
-                                id="phone" name="phone" type="tel" autoComplete="tel" required
+                                id="phone" name="phone" type="tel" autoComplete="tel"
                                 value={phoneNumber}
                                 onChange={(e) => setPhoneNumber(e.target.value)}
                                 className="block w-full px-3 py-2 bg-white border border-stone-300 rounded-md shadow-sm placeholder-stone-400 focus:outline-none focus:ring-brand-primary focus:border-brand-primary"
@@ -164,7 +200,8 @@ const SignUpPage: React.FC<SignUpPageProps> = ({ onSignUp, setPage }) => {
                     <div>
                         <button
                             type="submit"
-                            disabled={!isPhoneVerified}
+                            // 테스트를 위해 인증 없이도 가입 가능하게 하려면 disabled 조건을 푸세요
+                            // disabled={!isPhoneVerified} 
                             className="w-full flex justify-center py-3 px-4 border border-transparent rounded-full shadow-sm text-sm font-bold text-white bg-brand-primary hover:bg-brand-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-primary disabled:bg-stone-400 disabled:cursor-not-allowed"
                         >
                             가입하기
