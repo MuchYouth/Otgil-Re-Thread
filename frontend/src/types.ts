@@ -51,6 +51,11 @@ export enum Page {
   PARTY_HOST_DASHBOARD = 'PARTY_HOST_DASHBOARD',
   MAKERS_HUB = 'MAKERS_HUB',
 }
+// [1] 이웃 정보 타입 추가
+export interface NeighborSummary {
+    id: string;
+    nickname: string;
+}
 
 export interface User {
   id: string;
@@ -58,7 +63,8 @@ export interface User {
   email: string;
   phoneNumber?: string;
   isAdmin?: boolean;
-  neighbors?: string[]; // Array of user IDs
+  // [수정] 문자열(string)과 객체(NeighborSummary) 둘 다 허용하도록 변경!
+  neighbors: (string | NeighborSummary)[];// Array of user IDs
 }
 
 export interface ImpactStats {

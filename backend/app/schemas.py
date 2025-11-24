@@ -131,6 +131,15 @@ class UserBase(BaseModel):
     email: EmailStr
     phone_number: Optional[str] = None
 
+# [추가] 토큰 관련 스키마
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+# [추가] 일반적인 메시지 응답용 (선택 사항)
+class Msg(BaseModel):
+    msg: str
+
 class UserCreate(UserBase):
     password: str 
 
