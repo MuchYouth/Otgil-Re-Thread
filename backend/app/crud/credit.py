@@ -173,5 +173,5 @@ def earn_credit_to_user(db: Session, req: EarnRequest) -> CreditModel:
         amount=req.amount,
         user_id=req.user_id,
     )
-    
+
     return credit_obj

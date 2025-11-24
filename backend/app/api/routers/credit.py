@@ -1,12 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-import uuid
-import datetime
 
 from app.api.deps import get_db, get_current_user
 from app.schemas import CreditResponse, UserCreditBalanceResponse, EarnRequest
-from app.models import User, CreditTypeEnum as ModelCreditTypeEnum
+from app.models import User
 from app.crud import credit as crud_credit
 
 router = APIRouter()
