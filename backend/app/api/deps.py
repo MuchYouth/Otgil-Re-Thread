@@ -1,20 +1,21 @@
-# FastAPI의 의존성 주입(Dependency Injection) 시스템에서 사용될 함수
-'''
-1. 데이터베이스 세션 관리 (get_db)
-2. 인증 및 권한 관리 (get_current_user, get_current_admin_user)
-'''
-# app/api/deps.py
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+from jose import jwt, JWTError
 
 from app.database import SessionLocal
 from app.models import User
-# from app.crud import user as crud_user
-# from app.core import security # (보안/토큰 로직 구현 필요)
+from app.crud import user as crud_user
+
+# [수정됨] security.py에서 SECRET_KEY와 ALGORITHM을 가져옵니다.
+from app.core.security import SECRET_KEY, ALGORITHM
+
+# OAuth2PasswordBearer 설정 (중복 제거함)
+# tokenUrl은 실제 로그인 엔드포인트 경로와 일치해야 합니다.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
+
 
 # --- 1. Database Dependency ---
-
 def get_db():
     """
     요청마다 새로운 DB 세션을 생성하고,
@@ -28,35 +29,37 @@ def get_db():
 
 
 # --- 2. Authentication Dependencies ---
-
-# (주의: tokenUrl은 실제 로그인 엔드포인트의 경로여야 합니다)
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login") 
-
 def get_current_user(
-    db: Session = Depends(get_db), 
-    # 인증 토큰 추출
+    db: Session = Depends(get_db),
     token: str = Depends(oauth2_scheme)
 ) -> User:
     """
-    OAuth2 스킴에서 토큰을 가져와 디코딩하고,
-    DB에서 해당 사용자를 찾아 반환합니다.
-    
-    (주의: 실제 토큰 검증 로직 구현이 필요합니다)
+    헤더의 토큰을 검증하고, 해당하는 사용자 객체를 반환합니다.
     """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="자격 증명을 검증할 수 없습니다.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
     
-    # (실제 토큰 검증 로직 구현 위치)
+    try:
+        # 1. 토큰 디코딩
+        # 이제 상단에서 import 했기 때문에 SECRET_KEY와 ALGORITHM을 인식합니다.
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub") # create_access_token에서 넣은 'sub'
+        
+        if user_id is None:
+            raise credentials_exception
+            
+    except JWTError:
+        raise credentials_exception
     
-    # (임시) 인증 로직 구현 전, 임시로 첫 번째 사용자를 반환
-    print(f"임시: 토큰 '{token}'을(를) 검증하는 중입니다.")
-    temp_user = db.query(User).first()
-    if not temp_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="테스트 사용자를 찾을 수 없음 (인증 실패)",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return temp_user
-
+    # 2. DB에서 유저 조회
+    user = crud_user.get_user(db, user_id=user_id)
+    if user is None:
+        raise credentials_exception
+        
+    return user
 
 def get_current_admin_user(
     current_user: User = Depends(get_current_user)
@@ -74,7 +77,6 @@ def get_current_admin_user(
 
 
 # --- 3. (Optional) Common Query Parameters ---
-
 class PaginationParams:
     """
     페이지네이션을 위한 공통 쿼리 매개변수 의존성.

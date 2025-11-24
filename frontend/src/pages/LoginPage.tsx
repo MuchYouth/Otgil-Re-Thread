@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Page } from '../types';
 
 interface LoginPageProps {
-  onLogin: (email: string) => boolean;
+  onLogin: (email: string) => void; // 반환 타입을 boolean에서 void로 변경 (비동기 처리 때문)
   setPage: (page: Page) => void;
 }
 
@@ -32,25 +32,52 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, setPage }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  // [수정됨] 백엔드와 통신하는 진짜 로그인 함수
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) {
-      setError('이메일을 입력해주세요.');
+    setError(""); // 에러 초기화
+
+    if (!email || !password) {
+      setError('이메일과 비밀번호를 모두 입력해주세요.');
       return;
     }
-    const success = onLogin(email);
-    if (!success) {
-      setError('이메일 또는 비밀번호가 올바르지 않습니다.');
+
+    try {
+        // 1. FastAPI OAuth2Form은 JSON이 아니라 FormData를 받습니다.
+        const formData = new FormData();
+        formData.append("username", email); // [중요] 백엔드는 'username'이라는 필드명을 원함 (값은 이메일)
+        formData.append("password", password);
+
+        // 2. 백엔드로 요청 보내기
+        const response = await fetch("http://localhost:8000/users/login", {
+            method: "POST",
+            body: formData, // FormData는 자동으로 Content-Type을 설정하므로 헤더 생략 가능
+        });
+
+        // 3. 실패 처리 (400, 401 등)
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || "로그인에 실패했습니다.");
+        }
+
+        // 4. 성공 처리
+        const data = await response.json();
+        
+        // 토큰 저장 (매우 중요)
+        localStorage.setItem("access_token", data.access_token);
+        
+        // 부모 컴포넌트에 "로그인 성공함!" 알리기
+        onLogin(email); 
+
+    } catch (err: any) {
+        console.error("Login error:", err);
+        setError(err.message || "서버 통신 중 오류가 발생했습니다.");
     }
   };
 
   const handleSocialLogin = () => {
-    // For demo purposes, we log in with a mock user.
-    // In a real app, this would trigger the OAuth flow.
-    const success = onLogin('eco@fashion.com');
-    if(!success) {
-        alert("Mock social login failed. Please ensure the user 'eco@fashion.com' exists.");
-    }
+    // 소셜 로그인은 나중에 구현
+    alert("아직 구현되지 않은 기능입니다.");
   };
 
   const naverIcon = (
