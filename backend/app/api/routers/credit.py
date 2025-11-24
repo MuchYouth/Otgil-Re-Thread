@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+import uuid
+import datetime
 
 from app.api.deps import get_db, get_current_user
-from app.schemas import CreditResponse, UserCreditBalanceResponse
-from app.models import User
+from app.schemas import CreditResponse, UserCreditBalanceResponse, EarnRequest
+from app.models import User, CreditTypeEnum as ModelCreditTypeEnum
 from app.crud import credit as crud_credit
 
 router = APIRouter()
@@ -79,5 +81,35 @@ def delete_credit(
         
     # HTTP 204 No Content는 응답 본문이 없어야 함
     return
+
+
+@router.post(
+    "/earn",
+    response_model=CreditResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="유저에게 크레딧 적립"
+)
+def earn_credit(
+    req: EarnRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    요청으로 받은 `user_id`와 `amount`만큼 대상 사용자에게 크레딧을 추가합니다.
+    인증된 사용자만 호출할 수 있습니다.
+    """
+    # 대상 사용자 확인, 크레딧 생성 후 반환
+    credit_obj = crud_credit.earn_credit_to_user(db, req=req)
+
+    
+    try:
+        db.add(credit_obj)
+        db.commit()
+        db.refresh(credit_obj)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to add credit: {e}")
+
+    return credit_obj
 
 

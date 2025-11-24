@@ -171,6 +171,14 @@ class CreditBase(BaseModel):
     type: CreditTypeEnum
     amount: int
 
+# --- 간단한 적립용 엔드포인트 (/earn) ---
+class EarnRequest(BaseModel):
+    user_id: str
+    amount: int
+    activity_name: Optional[str] = "Earned credit by /earn router"
+    # 요청에서 type을 생략하면 기본적으로 EARNED_EVENT로 처리합니다.
+    type: Optional[CreditTypeEnum] = CreditTypeEnum.EARNED_EVENT
+
 class CreditCreate(CreditBase):
     user_id: str
 

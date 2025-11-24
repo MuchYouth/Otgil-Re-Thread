@@ -1,8 +1,12 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List
+import datetime
+from typing import Optional
+import uuid
 
-from app.models import Credit
+from app.models import Credit, User, Credit as CreditModel, CreditTypeEnum as ModelCreditTypeEnum
+from app.schemas import EarnRequest
 
 def get_user_credit_balance(db: Session, user_id: str) -> int:
     """특정 사용자의 크레딧 총 잔액을 계산합니다."""
@@ -143,3 +147,31 @@ def get_fifo_consumption_plan(db: Session, user_id: str, required_amount: int) -
         db.add(credit)
     db.commit()
     return earn_credits
+
+def earn_credit_to_user(db: Session, req: EarnRequest) -> CreditModel:
+
+    target = db.query(User).filter(User.id == req.user_id).first()
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target user not found")
+
+    # 크레딧 타입 처리: schemas에서 오는 Enum을 모델 Enum으로 변환
+    try:
+        if req.type is None:
+            credit_type = ModelCreditTypeEnum.EARNED_EVENT
+        else:
+            # req.type is a schema enum (CreditTypeEnum) -> use its value
+            credit_type = ModelCreditTypeEnum(req.type.value)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid credit type")
+    
+    # id는 128비트의 무작위 고유값
+    credit_obj = CreditModel(
+        id=str(uuid.uuid4()),
+        date=datetime.datetime.utcnow(),
+        activity_name=req.activity_name,
+        type=credit_type,
+        amount=req.amount,
+        user_id=req.user_id,
+    )
+    
+    return credit_obj
