@@ -68,7 +68,7 @@ const CreditRow: React.FC<{ credit: Credit }> = ({ credit }) => {
     );
 };
 
-const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onSetNeighbors, stats, clothingItems, credits, parties, onToggleListing, setPage, onSelectHostedParty, onPartySubmit, onCancelPartySubmit, onOffsetCredit, acceptedUpcomingParties }) => {
+const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats, clothingItems, credits, parties, onToggleListing, setPage, onSelectHostedParty, onPartySubmit, onCancelPartySubmit, onOffsetCredit, acceptedUpcomingParties }) => {
   const [activeSection, setActiveSection] = useState<MyPageSection>('CLOSET');
   const [qrModalParty, setQrModalParty] = useState<Party | null>(null);
   const [neighborSearchTerm, setNeighborSearchTerm] = useState('');
@@ -91,18 +91,6 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onSetNeighbors, stats, 
       ATTENDED: { text: '참가 완료', color: 'bg-stone-200 text-stone-700' },
   };
 
-  const handleAddNeighbor = (neighborId: string) => {
-    const currentNeighbors = user.neighbors || [];
-    if (!currentNeighbors.includes(neighborId)) {
-        onSetNeighbors(user.id, [...currentNeighbors, neighborId]);
-    }
-  };
-
-  const handleRemoveNeighbor = (neighborId: string) => {
-      const currentNeighbors = user.neighbors || [];
-      onSetNeighbors(user.id, currentNeighbors.filter(id => id !== neighborId));
-  };
-  
   const searchResults = neighborSearchTerm
     ? allUsers.filter(u => 
         u.id !== user.id &&
@@ -425,7 +413,7 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onSetNeighbors, stats, 
                                 {searchResults.map(foundUser => (
                                     <li key={foundUser.id} className="flex items-center justify-between bg-stone-50 p-3 rounded-md">
                                         <span className="font-medium">{foundUser.nickname}</span>
-                                        <button onClick={() => handleAddNeighbor(foundUser.id)} className="text-sm font-bold text-white bg-brand-secondary px-3 py-1 rounded-full hover:bg-brand-secondary-dark">추가</button>
+                                        <button onClick={() => onToggleNeighbor(foundUser.id)} className="text-sm font-bold text-white bg-brand-secondary px-3 py-1 rounded-full hover:bg-brand-secondary-dark">추가</button>
                                     </li>
                                 ))}
                             </ul>
@@ -442,7 +430,7 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onSetNeighbors, stats, 
                             {currentNeighbors.map(neighbor => (
                                 <li key={neighbor.id} className="flex items-center justify-between bg-stone-50 p-3 rounded-md">
                                     <span className="font-medium">{neighbor.nickname}</span>
-                                    <button onClick={() => handleRemoveNeighbor(neighbor.id)} className="text-sm font-bold text-white bg-red-500 px-3 py-1 rounded-full hover:bg-red-600">끊기</button>
+                                    <button onClick={() => onToggleNeighbor(neighbor.id)} className="text-sm font-bold text-white bg-red-500 px-3 py-1 rounded-full hover:bg-red-600">끊기</button>
                                 </li>
                             ))}
                         </ul>

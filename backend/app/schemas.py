@@ -131,9 +131,19 @@ class UserBase(BaseModel):
     email: EmailStr
     phone_number: Optional[str] = None
 
+# [추가] 토큰 관련 스키마
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+# [추가] 일반적인 메시지 응답용 (선택 사항)
+class Msg(BaseModel):
+    msg: str
+
 class UserCreate(UserBase):
     password: str 
-
+    # [수정] 관리자 여부 필드 추가 (기본값 False)
+    is_admin: bool = False 
 class UserUpdate(BaseModel):
     nickname: Optional[str] = None
     email: Optional[EmailStr] = None

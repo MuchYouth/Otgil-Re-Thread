@@ -1,4 +1,6 @@
 import uuid
+import random
+import string
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, desc, asc
 from typing import List, Optional
@@ -91,17 +93,26 @@ def get_participants(db: Session, party_id: str) -> List[PartyParticipation]:
 # 생성 (Create)
 # --------------------------------------------------------------------------
 
+def generate_invitation_code() -> str:
+    """6자리의 랜덤한 대문자/숫자 초대 코드를 생성합니다."""
+    chars = string.ascii_uppercase + string.digits
+    return ''.join(random.choice(chars) for _ in range(6))
+
 def create_party(db: Session, party: PartyCreate, host_id: str) -> Party:
     """
     새로운 파티 호스팅을 신청합니다 (기본 상태: PENDING_APPROVAL).
     """
     party_data = party.model_dump()
     
+    # [수정] 초대 코드 생성 로직 추가
+    invitation_code = generate_invitation_code()
+
     db_party = Party(
         **party_data,
         id=str(uuid.uuid4()),
         host_id=host_id,
-        status=PartyStatusEnum.PENDING_APPROVAL 
+        status=PartyStatusEnum.PENDING_APPROVAL,
+        invitation_code=invitation_code # [수정] DB에 저장할 때 필수로 들어감
     )
     
     db.add(db_party)
@@ -189,4 +200,21 @@ def remove_participant(db: Session, party_id: str, user_id: str) -> Optional[Par
         db.commit()
         return db_participation
         
+    return None
+
+
+def check_in_participant(db: Session, party_id: str, user_id: str) -> Optional[PartyParticipation]:
+    """
+    QR 코드를 통해 파티 참가자의 상태를 'ATTENDED'로 변경합니다 (체크인).
+    """
+    participation = db.query(PartyParticipation).filter(
+        PartyParticipation.party_id == party_id,
+        PartyParticipation.user_id == user_id
+    ).first()
+
+    if participation:
+        participation.status = PartyParticipantStatusEnum.ATTENDED
+        db.commit()
+        db.refresh(participation)
+        return participation
     return None
