@@ -6,7 +6,13 @@ from sqlalchemy.sql import func
 import datetime
 from app.database import Base
 
+<<<<<<< HEAD
 
+=======
+# SQLAlchemy Base 클래스 생성
+Base = declarative_base()
+from app.database import Base
+>>>>>>> main
 # --- Enum 정의 ---
 # TypeScript: export type ClothingCategory = 'T-SHIRT' | 'JEANS' | 'DRESS' | 'JACKET' | 'ACCESSORY';
 class ClothingCategoryEnum(enum.Enum):
