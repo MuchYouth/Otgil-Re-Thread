@@ -283,3 +283,30 @@ def admin_approve_party(
     
     # update_party_status 함수 재사용
     return crud_party.update_party_status(db=db, db_party=db_party, status=PartyStatusEnum.UPCOMING)
+
+@router.post("/{party_id}/check-in", response_model=PartyParticipantResponse, summary="파티 체크인 (QR 스캔)")
+def check_in(
+    party_id: str,
+    user_id: str, # 실제로는 QR 코드에서 읽은 유저 ID를 body로 받거나, 관리자가 스캔하여 전송
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    파티 호스트가 참가자의 QR 코드를 스캔하여 'ATTENDED' 상태로 변경합니다.
+    (보안을 위해 호스트 권한 체크 로직을 추가하는 것이 좋습니다)
+    """
+    # 1. 권한 체크 (현재 유저가 호스트인지)
+    db_party = crud_party.get_party(db, party_id)
+    if not db_party:
+        raise HTTPException(status_code=404, detail="파티를 찾을 수 없습니다.")
+        
+    if db_party.host_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="호스트만 체크인을 처리할 수 있습니다.")
+
+    # 2. 체크인 처리
+    updated_participation = crud_party.check_in_participant(db, party_id, user_id)
+    
+    if not updated_participation:
+         raise HTTPException(status_code=404, detail="참가자 명단에 없거나 신청하지 않은 유저입니다.")
+         
+    return updated_participation

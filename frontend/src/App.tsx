@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Page, User, ClothingItem, ImpactStats, Story, Credit, Reward, PerformanceReport, Comment, Party, Maker, MakerProduct, PartyParticipantStatus, GoodbyeTag, HelloTag, ClothingCategory } from './types';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -19,7 +19,6 @@ import BrowsePage from './pages/BrowsePage';
 import NeighborsClosetPage from './pages/NeighborsClosetPage';
 import NeighborProfilePage from './pages/NeighborProfilePage';
 import { IMPACT_FACTORS } from './constants';
-import { fetchClothingItems, fetchParties, fetchUsers } from './api/service';
 
 // Mock Data
 const MOCK_USERS_DATA: User[] = [
@@ -184,6 +183,7 @@ const App: React.FC = () => {
     const [comments, setComments] = useState<Comment[]>([]);
     const [reports, setReports] = useState<PerformanceReport[]>([]);
     const [credits, setCredits] = useState<Credit[]>([]);
+    const [rewards, setRewards] = useState<Reward[]>([]);
     const [makers, setMakers] = useState<Maker[]>([]);
     const [makerProducts, setMakerProducts] = useState<MakerProduct[]>([]);
     const [parties, setParties] = useState<Party[]>([]);
@@ -212,8 +212,20 @@ const App: React.FC = () => {
 
             if (response.ok) {
                 const userData = await response.json();
-                setCurrentUser(userData); // DB에서 가져온 진짜 유저 정보로 설정
+                // [수정] 백엔드(snake_case) -> 프론트엔드(camelCase) 매핑
+                // DB의 is_admin 값을 isAdmin으로, phone_number를 phoneNumber로 변환해야 합니다.
+                const mappedUser: User = {
+                    ...userData,
+                    isAdmin: userData.is_admin,        // 매핑 중요!
+                    phoneNumber: userData.phone_number // 매핑 중요!
+                };
+
+                setCurrentUser(mappedUser); // DB에서 가져온 진짜 유저 정보로 설정
                 // DB 유저가 users 목록에 없다면 추가 (UI 오류 방지)
+                // [251125_변경] 백엔드에서 크레딧 내역을 같이 보내준다면 여기서 업데이트
+                if (userData.credits && Array.isArray(userData.credits)) {
+                    setCredits(userData.credits);
+                }
                 setUsers(prev => {
                     if (!prev.find(u => u.id === userData.id)) {
                         return [...prev, userData];
@@ -231,10 +243,99 @@ const App: React.FC = () => {
         }
     }, []);
 
+        // ---------------------------------------------------------------------------
+    // [251125_변경 API] 2. 리워드 목록 가져오기
+    // ---------------------------------------------------------------------------
+    const fetchRewards = useCallback(async () => {
+        try {
+            const response = await fetch("http://localhost:8000/rewards/");
+            if (response.ok) {
+                const data = await response.json();
+                // 백엔드(snake_case) -> 프론트엔드(camelCase) 매핑
+                const formattedRewards: Reward[] = data.map((item: any) => ({
+                    id: item.id,
+                    name: item.name,
+                    description: item.description,
+                    cost: item.cost,
+                    imageUrl: item.image_url, // 중요: image_url -> imageUrl
+                    type: item.type
+                }));
+                setRewards(formattedRewards);
+            } else {
+                console.error("Failed to fetch rewards");
+            }
+        } catch (error) {
+            console.error("Error fetching rewards:", error);
+        }
+    }, []);
+
+    // ---------------------------------------------------------------------------
+    // [API] 3. 파티 목록 가져오기 (UPCOMING + COMPLETED)
+    // ---------------------------------------------------------------------------
+    const fetchParties = useCallback(async () => {
+        try {
+            // 진행 예정 파티와 완료된 파티를 모두 가져옵니다.
+            const [upcomingRes, completedRes, pendingRes] = await Promise.all([
+                fetch("http://localhost:8000/parties/?status_filter=UPCOMING"),
+                fetch("http://localhost:8000/parties/?status_filter=COMPLETED"),
+                fetch("http://localhost:8000/parties/?status_filter=PENDING_APPROVAL") // 내가 호스팅한 대기중 파티 확인용
+            ]);
+
+            let allParties: any[] = [];
+
+            if (upcomingRes.ok) allParties = [...allParties, ...await upcomingRes.json()];
+            if (completedRes.ok) allParties = [...allParties, ...await completedRes.json()];
+            if (pendingRes.ok) allParties = [...allParties, ...await pendingRes.json()];
+
+            // Backend snake_case -> Frontend camelCase 매핑
+            const formattedParties: Party[] = allParties.map((p: any) => ({
+                id: p.id,
+                hostId: p.host_id,
+                title: p.title,
+                description: p.description,
+                date: p.date,
+                location: p.location,
+                imageUrl: p.image_url,
+                details: p.details || [],
+                status: p.status,
+                invitationCode: p.invitation_code,
+                participants: p.participants.map((part: any) => ({
+                    userId: part.user_id,
+                    nickname: part.nickname,
+                    status: part.status
+                })),
+                impact: p.impact_items_exchanged ? {
+                    itemsExchanged: p.impact_items_exchanged,
+                    waterSaved: p.impact_water_saved,
+                    co2Reduced: p.impact_co2_reduced
+                } : undefined,
+                kitDetails: p.kit_participants ? {
+                    participants: p.kit_participants,
+                    itemsPerPerson: p.kit_items_per_person,
+                    cost: p.kit_cost
+                } : undefined
+            }));
+
+            // 중복 제거 (API 호출이 여러번이라 중복될 수 있음)
+            const uniqueParties = Array.from(new Map(formattedParties.map(item => [item.id, item])).values());
+            
+            // 날짜순 정렬
+            uniqueParties.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+            setParties(uniqueParties);
+
+        } catch (error) {
+            console.error("Error fetching parties:", error);
+        }
+    }, []);
+
     // [1] 앱 실행 시(새로고침 시) 토큰이 있으면 유저 정보 가져오기
+    // 앱 실행 시 데이터 로드
     useEffect(() => {
         fetchCurrentUser();
-    }, [fetchCurrentUser]);
+        fetchRewards();
+        fetchParties();
+    }, [fetchCurrentUser, fetchRewards, fetchParties]);
 
 
     // [2] 로그인 성공 핸들러 (LoginPage에서 호출)
@@ -260,8 +361,6 @@ const App: React.FC = () => {
     };
 
     // --- 이하 기존 로직들은 그대로 유지 (currentUser가 있다고 가정하고 동작) ---
-
-// [수정] neighborIds 타입을 string[] -> any[] 로 변경
     // (백엔드가 객체를 주든 문자열을 주든 에러가 안 나게 하기 위함)
     const handleSetNeighbors = (userId: string, neighborIds: any[]) => {
         setUsers(prevUsers => prevUsers.map(u => u.id === userId ? { ...u, neighbors: neighborIds } : u));
@@ -304,7 +403,49 @@ const App: React.FC = () => {
         alert("에러가 발생했습니다.");
     }
 };
-    
+
+    // [API]리워드 교환하기
+    const handleRedeemReward = async (reward: Reward) => {
+        if (!currentUser) {
+            alert("로그인이 필요합니다.");
+            setPage(Page.LOGIN);
+            return;
+        }
+
+        // 프론트엔드 사전 검증 (UX용)
+        if (userCreditBalance < reward.cost) {
+             alert('크레딧이 부족합니다.');
+             return;
+        }
+
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+
+        try {
+            const response = await fetch(`http://localhost:8000/rewards/exchange/${reward.id}`, {
+                method: "POST",
+                headers: { 
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                alert(`${result.msg}\n(남은 크레딧: ${result.remaining_credits})`);
+                
+                // [중요] 교환 성공 후 내 정보(크레딧) 갱신
+                fetchCurrentUser(); 
+            } else {
+                const errorData = await response.json();
+                alert(`교환 실패: ${errorData.detail}`);
+            }
+        } catch (error) {
+            console.error("Error redeeming reward:", error);
+            alert("서버 통신 중 오류가 발생했습니다.");
+        }
+    };
+
     const handleItemAdd = (
         itemInfo: {
             name: string;
@@ -372,45 +513,38 @@ const App: React.FC = () => {
         );
     };
     
-    const handlePartyApplication = (partyId: string) => {
+    // [API] 파티 참가 신청
+    const handlePartyApplication = async (partyId: string) => {
         if (!currentUser) {
             alert("로그인이 필요합니다.");
             setPage(Page.LOGIN);
             return;
         }
 
-        setParties(prevParties => {
-            const newParties = [...prevParties];
-            const partyIndex = newParties.findIndex(p => p.id === partyId);
+        // 초대 코드 입력 받기
+        const invitationCode = window.prompt("파티 초대 코드를 입력해주세요:");
+        if (!invitationCode) return;
 
-            if (partyIndex === -1) {
-                alert("파티를 찾을 수 없습니다.");
-                return prevParties;
+        const token = localStorage.getItem('access_token');
+
+        try {
+            // Query param으로 code 전송
+            const response = await fetch(`http://localhost:8000/parties/${partyId}/join?invitation_code=${invitationCode}`, {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                alert("파티 참가 신청이 완료되었습니다!");
+                fetchParties(); // 참가자 명단 갱신을 위해 재조회
+            } else {
+                const err = await response.json();
+                alert(`참가 신청 실패: ${err.detail}`);
             }
-
-            const party = newParties[partyIndex];
-            const alreadyApplied = party.participants.some(p => p.userId === currentUser.id);
-
-            if (alreadyApplied) {
-                alert("이미 이 파티에 신청했거나 참여중입니다.");
-                return prevParties;
-            }
-
-            const newParticipant = {
-                userId: currentUser.id,
-                nickname: currentUser.nickname,
-                status: 'PENDING' as const,
-            };
-
-            const updatedParty = {
-                ...party,
-                participants: [...party.participants, newParticipant]
-            };
-            
-            newParties[partyIndex] = updatedParty;
-            alert("파티 참가 신청이 완료되었습니다. '마이페이지'에서 상태를 확인하세요.");
-            return newParties;
-        });
+        } catch (error) {
+            console.error("Error joining party:", error);
+            alert("서버 통신 오류");
+        }
     };
     
     const handleSelectStory = (id: string) => {
@@ -532,37 +666,87 @@ const App: React.FC = () => {
         alert('파티가 삭제되었습니다.');
     };
     
-    const handleUpdateParticipantStatus = (partyId: string, userId: string, newStatus: PartyParticipantStatus) => {
-        setParties(prevParties => {
-            return prevParties.map(party => {
-                if (party.id === partyId) {
-                    return {
-                        ...party,
-                        participants: party.participants.map(p => 
-                            p.userId === userId ? { ...p, status: newStatus } : p
-                        ),
-                    };
-                }
-                return party;
+    // [API] 파티 체크인 (호스트용 QR 스캔)
+    const handleUpdateParticipantStatus = async (partyId: string, userId: string, newStatus: PartyParticipantStatus) => {
+        if (newStatus !== 'ATTENDED') return; // 현재 API는 체크인(ATTENDED)만 구현됨
+
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+
+        try {
+            // QR 체크인 API 호출 (Body에 user_id를 실어 보내거나 Query param 사용. 앞서 만든 API는 Query param user_id 사용)
+            const response = await fetch(`http://localhost:8000/parties/${partyId}/check-in?user_id=${userId}`, {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${token}` }
             });
-        });
+
+            if (response.ok) {
+                // 성공 시 로컬 상태도 업데이트하여 즉각 반영
+                setParties(prevParties => {
+                    return prevParties.map(party => {
+                        if (party.id === partyId) {
+                            return {
+                                ...party,
+                                participants: party.participants.map(p => 
+                                    p.userId === userId ? { ...p, status: newStatus } : p
+                                ),
+                            };
+                        }
+                        return party;
+                    });
+                });
+            } else {
+                const err = await response.json();
+                alert(`체크인 실패: ${err.detail}`);
+            }
+        } catch (error) {
+            console.error("Error checking in:", error);
+            alert("체크인 중 통신 오류가 발생했습니다.");
+        }
     };
 
-    const handleHostParty = (partyData: Omit<Party, 'id' | 'impact' | 'participants' | 'invitationCode' | 'hostId' | 'status' | 'kitDetails'>) => {
-        if (!currentUser) return;
-        const newParty: Party = {
-            ...partyData,
-            id: `party${parties.length + 1}`,
-            hostId: currentUser.id,
-            status: 'PENDING_APPROVAL',
-            invitationCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
-            participants: [{ userId: currentUser.id, nickname: currentUser.nickname, status: 'ACCEPTED' }],
-        };
-        setParties(prev => [...prev, newParty].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-        alert('파티 호스팅 신청이 완료되었습니다. 관리자 승인 후 마이페이지에서 상태를 확인하실 수 있습니다.');
-        setPage(Page.MY_PAGE);
-    };
+    // [API] 파티 호스팅 신청
+    const handleHostParty = async (partyData: Omit<Party, 'id' | 'impact' | 'participants' | 'invitationCode' | 'hostId' | 'status' | 'kitDetails'>) => {
+        if (!currentUser) {
+            alert("로그인이 필요합니다.");
+            setPage(Page.LOGIN);
+            return;
+        }
+        const token = localStorage.getItem('access_token');
+        
+        try {
+            // Frontend camelCase -> Backend snake_case
+            const payload = {
+                title: partyData.title,
+                description: partyData.description,
+                date: partyData.date,
+                location: partyData.location,
+                image_url: partyData.imageUrl,
+                details: partyData.details
+            };
 
+            const response = await fetch("http://localhost:8000/parties/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                alert('파티 호스팅 신청이 완료되었습니다. 관리자 승인 후 마이페이지에서 확인하실 수 있습니다.');
+                fetchParties(); // 목록 갱신
+                setPage(Page.MY_PAGE);
+            } else {
+                const err = await response.json();
+                alert(`신청 실패: ${err.detail}`);
+            }
+        } catch (error) {
+            console.error("Error hosting party:", error);
+            alert("서버 통신 오류");
+        }
+    };
     const handleUpdatePartyApprovalStatus = (partyId: string, newStatus: 'UPCOMING' | 'REJECTED') => {
         setParties(prevParties => {
             return prevParties.map(party => {
@@ -616,7 +800,7 @@ const App: React.FC = () => {
         ));
     };
 
-
+    // 환경 임팩트 계산
     const userImpactStats = useMemo<ImpactStats>(() => {
         if (!currentUser) return { itemsExchanged: 0, waterSaved: 0, co2Reduced: 0 };
         const userItems = clothingItems.filter(item => item.userId === currentUser.id);
@@ -631,14 +815,21 @@ const App: React.FC = () => {
         }, { itemsExchanged: userItems.length, waterSaved: 0, co2Reduced: 0 });
     }, [currentUser, clothingItems]);
     
-    const userCredits = useMemo(() => credits.filter(c => c.userId === currentUser?.id), [credits, currentUser]);
+    // [251125_수정] currentUser의 credits 관계 또는 별도 credits 상태를 통해 계산
+    const userCredits = useMemo(() => {
+        if (!currentUser) return [];
+        // credits 상태가 별도로 관리되거나 currentUser 안에 포함됨
+        return credits.filter(c => c.userId === currentUser.id);
+    }, [credits, currentUser]);
 
     const userCreditBalance = useMemo(() => {
         return userCredits.reduce((sum, credit) => {
-          return credit.type.startsWith('EARNED') ? sum + credit.amount : sum - credit.amount;
+            // Enum 문자열 확인 필요 (스키마와 일치)
+            if (credit.type.startsWith('EARNED')) return sum + credit.amount;
+            return sum - credit.amount;
         }, 0);
     }, [userCredits]);
-
+    // 
     const acceptedUpcomingPartiesForUser = useMemo(() => {
         if (!currentUser) return [];
         return parties.filter(p => 
@@ -646,24 +837,6 @@ const App: React.FC = () => {
             p.participants.some(participant => participant.userId === currentUser.id && participant.status === 'ACCEPTED')
         );
     }, [parties, currentUser]);
-
-    const handleRedeemReward = (reward: Reward) => {
-        if (!currentUser) return;
-        if (userCreditBalance < reward.cost) {
-            alert('You do not have enough credits.');
-            return;
-        }
-        const newCredit: Credit = {
-            id: `credit${credits.length + 1}`,
-            userId: currentUser.id,
-            date: new Date().toISOString().split('T')[0],
-            activityName: `${reward.name} 교환`,
-            type: 'SPENT_REWARD',
-            amount: reward.cost,
-        };
-        setCredits(prev => [...prev, newCredit]);
-        alert(`'${reward.name}' has been redeemed!`);
-    }
 
     const handlePurchaseMakerProduct = (product: MakerProduct) => {
         if (!currentUser) return;
@@ -736,12 +909,26 @@ const App: React.FC = () => {
                 reports={reports}
                 onAddReport={handleAddReport}
              />;
+            // [251125_수정] RewardsPage에 실제 데이터 전달
             case Page.REWARDS:
-                return currentUser ? <RewardsPage user={currentUser} rewards={MOCK_REWARDS} currentBalance={userCreditBalance} onRedeem={handleRedeemReward} /> : <LoginPage onLogin={handleLogin} setPage={setPage} />;
+                return currentUser ? (
+                    <RewardsPage 
+                        user={currentUser} 
+                        rewards={rewards} // API로 받아온 rewards 전달
+                        currentBalance={userCreditBalance} 
+                        onRedeem={handleRedeemReward} // API 핸들러 전달
+                    />
+                ) : <LoginPage onLogin={handleLogin} setPage={setPage} />;
+                
+            // [수정] API 데이터 전달
             case Page.TWENTY_ONE_PERCENT_PARTY:
                 return <TwentyOnePercentPartyPage parties={parties} items={clothingItems} currentUser={currentUser} onPartyApply={handlePartyApplication} setPage={setPage} />;
+            
+            // [수정] 핸들러 전달
             case Page.PARTY_HOSTING:
                 return <PartyHostingPage onHostParty={handleHostParty} />;
+            
+            // [수정] 핸들러 전달
             case Page.PARTY_HOST_DASHBOARD:
                 const party = parties.find(p => p.id === selectedPartyId);
                 return party ? <PartyHostDashboardPage party={party} setPage={setPage} makers={makers} onUpdateImpact={handleUpdatePartyImpact} onUpdateParticipantStatus={handleUpdateParticipantStatus} /> : <MyPage user={currentUser!} stats={userImpactStats} clothingItems={[]} credits={[]} parties={parties} allUsers={users} onSetNeighbors={handleSetNeighbors} onToggleListing={handleToggleListing} setPage={setPage} onSelectHostedParty={handleSelectParty} onPartySubmit={handlePartySubmit} onCancelPartySubmit={handleCancelPartySubmit} onOffsetCredit={handleOffsetCredit} acceptedUpcomingParties={acceptedUpcomingPartiesForUser} />;
@@ -767,12 +954,6 @@ const App: React.FC = () => {
         <div className="flex flex-col min-h-screen bg-brand-background">
             <Header currentPage={page} setPage={setPage} user={currentUser} onLogout={handleLogout} />
             <main className="flex-grow">
-                {isLoadingData && (
-                    <p className="p-4 text-center text-sm text-gray-600">백엔드 API에서 데이터를 불러오는 중입니다...</p>
-                )}
-                {dataError && (
-                    <p className="px-4 py-2 text-center text-sm text-red-700 bg-red-50">{dataError}</p>
-                )}
                 {renderPage()}
             </main>
             <Footer />
