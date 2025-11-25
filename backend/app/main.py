@@ -6,7 +6,8 @@ from app.api.routers import user, item, party, community, maker, credit, admin
 
 # 가정: app/database.py에 Base와 engine이 정의되어 있음
 from app.database import Base, engine
-
+# ⭐ 중요: 모든 모델 클래스를 명시적으로 임포트
+from app import models
 # 애플리케이션 시작 시 데이터베이스 테이블 생성 (개발용)
 Base.metadata.create_all(bind=engine)
 

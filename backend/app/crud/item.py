@@ -2,8 +2,8 @@ import uuid
 from sqlalchemy.orm import Session
 from typing import List
 
-from app.models import ClothingItem, PartySubmissionStatusEnum
-from app.schemas import ClothingItemCreate, ClothingItemUpdate
+from app.models import ClothingItem, PartySubmissionStatusEnum, GoodbyeTag, HelloTag
+from app.schemas import ClothingItemCreate, ClothingItemUpdate, GoodbyeTagCreate, HelloTagCreate
 
 def get_item(db: Session, item_id: str) -> ClothingItem | None:
     """ID로 단일 아이템을 조회합니다."""
@@ -66,6 +66,51 @@ def update_item_submission_status(db: Session, db_item: ClothingItem, status: st
         return db_item 
 
     db_item.party_submission_status = status_enum
+    
+    db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+def remove_item(db: Session, db_item: ClothingItem):
+    """
+    특정 아이템 객체를 데이터베이스에서 삭제합니다.
+    """
+    db.delete(db_item)
+    db.commit()
+    # 반환할 것이 없으므로 None을 반환하거나, 성공 메시지 처리를 위해 True를 반환할 수도 있습니다.
+
+
+def create_goodbye_tag(db: Session, db_item: ClothingItem, tag_in: GoodbyeTagCreate) -> ClothingItem:
+    """
+    아이템에 GoodbyeTag를 생성하고 연결합니다.
+    """
+    # GoodbyeTag 모델 생성. item_id를 PK/FK로 사용
+    db_tag = GoodbyeTag(
+        clothing_item_id=db_item.id,
+        **tag_in.model_dump()
+    )
+    
+    # ClothingItem 객체에 관계를 통해 GoodbyeTag 연결
+    db_item.goodbye_tag = db_tag
+    
+    db.add(db_item) # item을 커밋하면 cascade 설정에 따라 tag도 저장됨
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+def create_hello_tag(db: Session, db_item: ClothingItem, tag_in: HelloTagCreate) -> ClothingItem:
+    """
+    아이템에 HelloTag를 생성하고 연결합니다.
+    """
+    # HelloTag 모델 생성. item_id를 PK/FK로 사용
+    db_tag = HelloTag(
+        clothing_item_id=db_item.id,
+        **tag_in.model_dump()
+    )
+    
+    # ClothingItem 객체에 관계를 통해 HelloTag 연결
+    db_item.hello_tag = db_tag
     
     db.add(db_item)
     db.commit()

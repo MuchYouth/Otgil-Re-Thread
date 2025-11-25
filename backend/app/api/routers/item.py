@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from app.api.deps import get_db, get_current_user
-from app.schemas import ClothingItemCreate, ClothingItemResponse, ClothingItemUpdate
-from app.models import User
+from app.api.deps import get_db, get_current_user, get_current_admin_user
+from app.schemas import ClothingItemCreate, ClothingItemResponse, ClothingItemUpdate, PartySubmissionStatusEnum, GoodbyeTagCreate, HelloTagCreate
+from app.models import User, ClothingItem
 from app.crud import item as crud_item
 
 router = APIRouter()
@@ -89,3 +89,149 @@ def update_item(
     return crud_item.update_item(db=db, db_item=db_item, item_in=item_in)
 
 # ... (아이템 삭제, Goodbye/Hello 태그 생성, 파티 출품 신청 등 라우터) ...
+
+@router.delete(
+    "/{item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="아이템 삭제 (소유자 전용)"
+)
+def delete_item(
+    item_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    ID에 해당하는 의류 아이템을 삭제합니다.
+    **아이템의 소유자**만 삭제할 수 있습니다.
+    """
+    db_item = crud_item.get_item(db, item_id=item_id)
+    
+    #아이템이 없을 경우
+    if db_item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+
+    #해당 아이템의 사용자와 현재 사용자가 일치하지 않을 때   
+    if db_item.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Not authorized to delete this item"
+        )
+
+    #remove_item은 이번에 crud에 추가했음
+    crud_item.remove_item(db=db, db_item=db_item)
+    
+    # HTTP 204 No Content 상태 코드는 성공적으로 처리되었으나 클라이언트에게 보낼 데이터가 없을 때 사용됩니다.
+    return
+
+@router.put(
+    "/{item_id}/submission_status",
+    response_model=ClothingItemResponse,
+    summary="아이템의 파티 출품 상태 변경 (관리자 전용)"
+)
+def update_item_submission_status_admin(
+    item_id: str,
+    status_in: PartySubmissionStatusEnum, # Enum 타입으로 입력받아 유효성 검사 자동화
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user) 
+):
+    """
+    아이템의 파티 출품 상태를 PENDING, APPROVED, REJECTED로 변경합니다.
+    **관리자 권한**이 필요합니다.
+    """
+    db_item = crud_item.get_item(db, item_id=item_id)
+    
+    if db_item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+        
+    # item.py의 update_item_submission_status 함수에 Enum의 값(str) 전달
+    updated_item = crud_item.update_item_submission_status(
+        db=db, 
+        db_item=db_item, 
+        status=status_in.value 
+    )
+    return updated_item
+
+
+@router.post(
+    "/{item_id}/goodbye",
+    response_model=ClothingItemResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="아이템의 Goodbye Tag 작성 (원래 소유자 전용)"
+)
+def create_goodbye_tag_for_item(
+    item_id: str,
+    tag_in: GoodbyeTagCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    아이템을 떠나보내는 **원래 소유자**가 Goodbye Tag를 작성합니다.
+    (아이템의 현재 소유자만 작성 가능)
+    """
+    db_item = crud_item.get_item(db, item_id=item_id)
+    
+    if db_item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+        
+    # 권한 검사: 아이템의 현재 소유자만 작성 가능
+    if db_item.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Not authorized to write Goodbye Tag for this item. Only the current owner can write it."
+        )
+        
+    # 이미 태그가 작성되었는지 확인 (중복 작성 방지)
+    if db_item.goodbye_tag: 
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Goodbye Tag already exists for this item"
+        )
+
+    updated_item = crud_item.create_goodbye_tag(db=db, db_item=db_item, tag_in=tag_in)
+    return updated_item
+
+@router.post(
+    "/{item_id}/hello",
+    response_model=ClothingItemResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="아이템의 Hello Tag 작성 (새 소유자 전용)"
+)
+def create_hello_tag_for_item(
+    item_id: str,
+    tag_in: HelloTagCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    아이템을 **새로 받은 소유자**가 Hello Tag를 작성합니다.
+    (교환이 완료되어 아이템의 user_id가 업데이트된 후, 새 소유자만 작성 가능)
+    """
+    db_item = crud_item.get_item(db, item_id=item_id)
+    
+    if db_item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+        
+    # 권한 검사: 아이템의 현재 소유자 (즉, 새로 받은 소유자)만 작성 가능
+    # 교환 플로우상, 아이템을 받은 후 이 라우터를 호출하면 user_id가 이미 새 소유자의 ID여야 합니다.
+    if db_item.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Not authorized to write Hello Tag for this item. Only the current owner (new owner) can write it."
+        )
+    
+    # Hello Tag가 이미 작성되었는지 확인
+    if db_item.hello_tag:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Hello Tag already exists for this item"
+        )
+        
+    # (논리적 선행 조건) Goodbye Tag가 먼저 작성되었는지 확인
+    if not db_item.goodbye_tag: 
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Cannot write Hello Tag until the Goodbye Tag has been created by the previous owner."
+        )
+
+    updated_item = crud_item.create_hello_tag(db=db, db_item=db_item, tag_in=tag_in)
+    return updated_item
