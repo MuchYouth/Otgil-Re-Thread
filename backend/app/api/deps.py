@@ -6,13 +6,20 @@
 # app/api/deps.py
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from jose import jwt, JWTError # (11월 20일 추가)
 from sqlalchemy.orm import Session
-
+from app.core.security import ALGORITHM, SECRET_KEY # 위에서 만든 파일 import
 from app.database import SessionLocal
 from app.models import User
-# from app.crud import user as crud_user
-# from app.core import security # (보안/토큰 로직 구현 필요)
+from app.crud import user as crud_user #(11월 20일 주석 해제)
+#from app.core import security # (보안/토큰 로직 구현 필요) #위에서 구현 완료(11월 20일)
 
+#(11월 20일 추가)----------------------------------------------------
+# OAuth2PasswordBearer는 프론트엔드가 토큰을 보낼 때
+# Authorization: Bearer {token} 헤더를 파싱해줍니다.
+# tokenUrl은 로그인 엔드포인트의 주소입니다.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
+#-------------------------------------------------------------------
 # --- 1. Database Dependency ---
 
 def get_db():
@@ -30,31 +37,41 @@ def get_db():
 # --- 2. Authentication Dependencies ---
 
 # (주의: tokenUrl은 실제 로그인 엔드포인트의 경로여야 합니다)
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login") 
+# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
+
+# app/api/deps.py
+
+# from app.core import security # 실제 토큰 처리 모듈 (가정)
 
 def get_current_user(
-    db: Session = Depends(get_db), 
-    token: str = Depends(oauth2_scheme)
+        db: Session = Depends(get_db),
+        token: str = Depends(oauth2_scheme)
 ) -> User:
     """
-    OAuth2 스킴에서 토큰을 가져와 디코딩하고,
-    DB에서 해당 사용자를 찾아 반환합니다.
-    
-    (주의: 실제 토큰 검증 로직 구현이 필요합니다)
+    헤더의 토큰을 검증하고, 해당하는 사용자 객체를 반환합니다.
     """
-    
-    # (실제 토큰 검증 로직 구현 위치)
-    
-    # (임시) 인증 로직 구현 전, 임시로 첫 번째 사용자를 반환
-    print(f"임시: 토큰 '{token}'을(를) 검증하는 중입니다.")
-    temp_user = db.query(User).first()
-    if not temp_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="테스트 사용자를 찾을 수 없음 (인증 실패)",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return temp_user
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="자격 증명을 검증할 수 없습니다.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    try:
+        # 1. 토큰 디코딩
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")  # create_access_token에서 넣은 'sub'
+
+        if user_id is None:
+            raise credentials_exception
+
+    except JWTError:
+        raise credentials_exception
+        # 2. DB에서 유저 조회
+    user = crud_user.get_user(db, user_id=user_id)
+    if user is None:
+        raise credentials_exception
+
+    return user
 
 
 def get_current_admin_user(

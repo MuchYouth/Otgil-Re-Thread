@@ -139,13 +139,30 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     phone_number: Optional[str] = None
 
+
+# app/schemas.py
+
+# 1. 친구 정보를 보여줄 작은 스키마를 따로 만듭니다.
+class NeighborSummary(BaseModel):
+    id: str
+    nickname: str
+
+    # email은 개인정보니 뺍니다. 필요하면 추가하세요.
+
+    class Config:
+        from_attributes = True
+
+
+# 2. UserResponse에서 neighbors를 문자열(str)이 아니라 위에서 만든 객체 리스트로 받습니다.
 class UserResponse(UserBase):
     id: str
     is_admin: Optional[bool] = False
-    neighbors: Optional[List[str]] = []
+
+    # [핵심] ID만 주는 게 아니라, ID랑 닉네임을 같이 줍니다! (자동 변환됨)
+    neighbors: List[NeighborSummary] = []
 
     class Config:
-        from_attributes = True # v2 변경: orm_mode -> from_attributes
+        from_attributes = True
 
 class UserResponseWithItems(UserResponse):
     items: List[ClothingItemResponse] = []
@@ -154,6 +171,11 @@ class UserResponseWithItems(UserResponse):
     
     class Config:
         from_attributes = True # v2 변경: orm_mode -> from_attributes
+
+# [추가] 토큰 관련 스키마(11월 20일)
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
 # --- Credit Schemas ---
 

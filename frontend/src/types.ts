@@ -52,13 +52,19 @@ export enum Page {
   MAKERS_HUB = 'MAKERS_HUB',
 }
 
+// [1] 이웃 정보 타입 추가 (11월 22일)
+export interface NeighborSummary {
+    id: string;
+    nickname: string;
+}
+
 export interface User {
   id: string;
   nickname: string;
   email: string;
   phoneNumber?: string;
   isAdmin?: boolean;
-  neighbors?: string[]; // Array of user IDs
+  neighbors: (string | NeighborSummary)[];// 11월 22일 수정 목데이터(string을 원함)때문에 타입을 객체로만 받을 수가 없음
 }
 
 export interface ImpactStats {
@@ -188,3 +194,4 @@ export interface CategoryDistribution {
     category: ClothingCategory;
     count: number;
 }
+
