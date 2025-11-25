@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -16,6 +17,7 @@ app = FastAPI(
     description="지속가능한 의류 교환을 위한 플랫폼",
     version="1.0.0",
 )
+
 origins = [
     "http://localhost:3000", # 리액트/뷰 프론트엔드 개발 서버 주소
     "http://127.0.0.1:3000",
@@ -25,7 +27,7 @@ origins = [
 # CORS (Cross-Origin Resource Sharing) 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 실제 배포 시에는 프론트엔드 도메인만 허용
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

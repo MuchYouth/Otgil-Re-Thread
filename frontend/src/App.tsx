@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Page, User, ClothingItem, ImpactStats, Story, Credit, Reward, PerformanceReport, Comment, Party, Maker, MakerProduct, PartyParticipantStatus, GoodbyeTag, HelloTag, ClothingCategory } from './types';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -19,6 +19,7 @@ import BrowsePage from './pages/BrowsePage';
 import NeighborsClosetPage from './pages/NeighborsClosetPage';
 import NeighborProfilePage from './pages/NeighborProfilePage';
 import { IMPACT_FACTORS } from './constants';
+import { fetchClothingItems, fetchParties, fetchUsers } from './api/service';
 
 // Mock Data
 const MOCK_USERS_DATA: User[] = [
@@ -766,6 +767,12 @@ const App: React.FC = () => {
         <div className="flex flex-col min-h-screen bg-brand-background">
             <Header currentPage={page} setPage={setPage} user={currentUser} onLogout={handleLogout} />
             <main className="flex-grow">
+                {isLoadingData && (
+                    <p className="p-4 text-center text-sm text-gray-600">백엔드 API에서 데이터를 불러오는 중입니다...</p>
+                )}
+                {dataError && (
+                    <p className="px-4 py-2 text-center text-sm text-red-700 bg-red-50">{dataError}</p>
+                )}
                 {renderPage()}
             </main>
             <Footer />
