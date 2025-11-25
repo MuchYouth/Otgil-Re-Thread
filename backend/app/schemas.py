@@ -23,7 +23,7 @@ import enum
 # --- Enums (SQLAlchemy 모델과 동일한 Enum 임포트 또는 재정의) ---
 # (이전과 동일)
 class ClothingCategoryEnum(str, enum.Enum):
-    T_SHIRT = 'T-SHIRT'
+    TSHIRT = 'TSHIRT'
     JEANS = 'JEANS'
     DRESS = 'DRESS'
     JACKET = 'JACKET'

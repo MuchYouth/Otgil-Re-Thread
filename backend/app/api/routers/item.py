@@ -28,7 +28,7 @@ def read_items(
 
 
 @router.post(
-    "/", 
+    "/add", 
     response_model=ClothingItemResponse, 
     status_code=status.HTTP_201_CREATED,
     summary="내 옷장에 아이템 등록"
@@ -66,7 +66,7 @@ def read_my_items(
 
 
 @router.patch(
-    "/{item_id}",
+    "/modify/{item_id}",
     response_model=ClothingItemResponse,
     summary="내 아이템 정보 수정"
 )
@@ -91,7 +91,7 @@ def update_item(
 # ... (아이템 삭제, Goodbye/Hello 태그 생성, 파티 출품 신청 등 라우터) ...
 
 @router.delete(
-    "/{item_id}",
+    "/delete/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="아이템 삭제 (소유자 전용)"
 )
@@ -124,7 +124,7 @@ def delete_item(
     return
 
 @router.put(
-    "/{item_id}/submission_status",
+    "/submission_status/{item_id}",
     response_model=ClothingItemResponse,
     summary="아이템의 파티 출품 상태 변경 (관리자 전용)"
 )
@@ -153,7 +153,7 @@ def update_item_submission_status_admin(
 
 
 @router.post(
-    "/{item_id}/goodbye",
+    "/goodbye/{item_id}",
     response_model=ClothingItemResponse,
     status_code=status.HTTP_201_CREATED,
     summary="아이템의 Goodbye Tag 작성 (원래 소유자 전용)"
@@ -191,7 +191,7 @@ def create_goodbye_tag_for_item(
     return updated_item
 
 @router.post(
-    "/{item_id}/hello",
+    "/hello/{item_id}",
     response_model=ClothingItemResponse,
     status_code=status.HTTP_201_CREATED,
     summary="아이템의 Hello Tag 작성 (새 소유자 전용)"
