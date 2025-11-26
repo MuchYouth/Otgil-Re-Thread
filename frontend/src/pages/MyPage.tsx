@@ -11,7 +11,7 @@ type MyPageSection = 'DASHBOARD' | 'CLOSET' | 'CREDITS' | 'APPLICATIONS' | 'ACTI
 interface MyPageProps {
   user: User;
   allUsers: User[];
-  onSetNeighbors: (userId: string, neighborIds: string[]) => void;
+  onToggleNeighbor: (userId: string, neighborIds: string[]) => void;
   stats: ImpactStats;
   clothingItems: ClothingItem[];
   credits: Credit[];
