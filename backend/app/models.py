@@ -9,9 +9,9 @@ import datetime
 Base = declarative_base()
 from app.database import Base
 # --- Enum 정의 ---
-# TypeScript: export type ClothingCategory = 'T-SHIRT' | 'JEANS' | 'DRESS' | 'JACKET' | 'ACCESSORY';
+# TypeScript: export type ClothingCategory = 'TSHIRT' | 'JEANS' | 'DRESS' | 'JACKET' | 'ACCESSORY';
 class ClothingCategoryEnum(enum.Enum):
-    T_SHIRT = 'T-SHIRT'
+    TSHIRT = 'TSHIRT'
     JEANS = 'JEANS'
     DRESS = 'DRESS'
     JACKET = 'JACKET'
@@ -328,6 +328,14 @@ class Party(Base):
     stories = relationship('Story', back_populates='party')
     participations = relationship('PartyParticipation', back_populates='party', cascade="all, delete-orphan")
 
+# 뉴스레터
+class PerformanceReport(Base):
+    __tablename__ = 'performance_reports'
+    
+    id = Column(String, primary_key=True)
+    title = Column(String, nullable=False)
+    date = Column(Date, nullable=False)
+    excerpt = Column(Text)
 
 # --- Admin 관련 인터페이스 (AdminOverallStats, AdminGroupPerformance 등) ---
 # 이들은 데이터베이스 테이블이 아니라,
