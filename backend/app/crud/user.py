@@ -41,7 +41,8 @@ def create_user(db: Session, user: UserCreate) -> User:
         email=user.email,
         nickname=user.nickname,
         hashed_password=hashed_password, # 모델에 이 필드가 있어야 함
-        phone_number=user.phone_number
+        phone_number=user.phone_number,
+        is_admin=user.is_admin # [수정] 관리자 여부 저장
     )
     
     db.add(db_user)
@@ -81,7 +82,7 @@ def authenticate_user(db: Session, email: str, password: str) -> User | None:
 
 # [추가] 이웃 추가 (팔로우)
 def add_neighbor(db: Session, db_user: User, neighbor_id: str) -> User:
-    # 팔로우할 대상 조회
+    # 팔로우할 대상 조회s
     neighbor = get_user(db, neighbor_id)
     if not neighbor:
         return None
