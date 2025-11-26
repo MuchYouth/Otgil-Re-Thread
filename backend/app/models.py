@@ -1,18 +1,17 @@
-    # SQL Alchemy 데이터 베이스 모델
+# SQL Alchemy 데이터 베이스 모델 
 import enum
 from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, Date, DateTime, ForeignKey, Table, Enum as DBEnum, JSON
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.sql import func
 import datetime
 
-
 # SQLAlchemy Base 클래스 생성
 Base = declarative_base()
-from app.database import Base  # [중요] database.py에서 만든 Base를 가져와야 함(11월 21일 추가)
+from app.database import Base
 # --- Enum 정의 ---
-# TypeScript: export type ClothingCategory = 'T-SHIRT' | 'JEANS' | 'DRESS' | 'JACKET' | 'ACCESSORY';
+# TypeScript: export type ClothingCategory = 'TSHIRT' | 'JEANS' | 'DRESS' | 'JACKET' | 'ACCESSORY';
 class ClothingCategoryEnum(enum.Enum):
-    T_SHIRT = 'T-SHIRT'
+    TSHIRT = 'TSHIRT'
     JEANS = 'JEANS'
     DRESS = 'DRESS'
     JACKET = 'JACKET'
@@ -75,7 +74,6 @@ story_tags = Table(
     Column('story_id', String, ForeignKey('stories.id'), primary_key=True),
     Column('tag_id', Integer, ForeignKey('tags.id'), primary_key=True)
 )
-
 # --- 모델 정의 ---
 
 class User(Base):
@@ -88,7 +86,6 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
     hashed_password = Column(String, nullable=False)
     # Relationships
-
     # `neighbors` (self-referential many-to-many)
     neighbors = relationship(
         'User',
@@ -331,6 +328,14 @@ class Party(Base):
     stories = relationship('Story', back_populates='party')
     participations = relationship('PartyParticipation', back_populates='party', cascade="all, delete-orphan")
 
+# 뉴스레터
+class PerformanceReport(Base):
+    __tablename__ = 'performance_reports'
+    
+    id = Column(String, primary_key=True)
+    title = Column(String, nullable=False)
+    date = Column(Date, nullable=False)
+    excerpt = Column(Text)
 
 # --- Admin 관련 인터페이스 (AdminOverallStats, AdminGroupPerformance 등) ---
 # 이들은 데이터베이스 테이블이 아니라,

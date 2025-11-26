@@ -1,27 +1,10 @@
-# Pydantic 데이터 검증 스키마
-'''
-💡 주요 참고 사항
-orm_mode = True (Pydantic v1) / from_attributes = True (Pydantic v2): Config 클래스에 이 설정을 추가하면, response_model로 지정된 Pydantic 스키마가 SQLAlchemy 객체(User, ClothingItem 등)를 받아서 자동으로 dict처럼 속성을 읽어 직렬화(Serialization)할 수 있게 해줍니다.
-
-순환 참조 (Forward References): UserResponseWithItems가 CreditResponse를 참조하고, MakerResponse가 MakerProductResponse를 참조하는 등, 서로를 참조하는 스키마가 있습니다. Pydantic은 아직 정의되지 않은 클래스 이름을 문자열('CreditResponse')로 처리하고, 파일 마지막에 MySchema.update_forward_refs()를 호출하여 이 참조를 해결하도록 합니다.
-
-Enum 사용: SQLAlchemy 모델에서 정의한 Enum을 Pydantic 스키마에서도 동일하게 사용하여 API 레벨에서부터 데이터 유효성(validation)을 보장합니다.
-
-password 처리: UserCreate 스키마에는 password가 있지만, UserResponse 스키마에는 없습니다. 이는 사용자를 생성할 때는 비밀번호를 받지만, API가 사용자 정보를 응답으로 보낼 때는 절대 비밀번호를 포함하지 않기 위함입니다.
-
-Admin 스키마: Admin용 통계 스키마(AdminOverallStats 등)는 데이터를 생성(Create)하거나 수정(Update)할 필요 없이 오직 조회(Read)만 하므로, 기본 응답 스키마만 정의했습니다.
-
-이 스키마들은 FastAPI와 같은 프레임워크에서 dependencies, request_body, response_model 등으로 활용되어 강력한 타입 검증과 자동 문서화(Swagger/OpenAPI)를 제공합니다.
-'''
-# app/schemas.py
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, computed_field
 import datetime
 import enum
 
-# --- Enums (SQLAlchemy 모델과 동일한 Enum 임포트 또는 재정의) ---
-# (이전과 동일)
+# --- Enums ---
 class ClothingCategoryEnum(str, enum.Enum):
     T_SHIRT = 'T-SHIRT'
     JEANS = 'JEANS'
@@ -58,7 +41,7 @@ class PartyStatusEnum(str, enum.Enum):
     REJECTED = 'REJECTED'
 
 
-# --- Helper Schemas (Embedded Objects) ---
+# --- Helper Schemas ---
 
 class GoodbyeTagBase(BaseModel):
     met_when: str
@@ -73,7 +56,7 @@ class GoodbyeTagCreate(GoodbyeTagBase):
 
 class GoodbyeTagResponse(GoodbyeTagBase):
     class Config:
-        from_attributes = True # v2 변경: orm_mode -> from_attributes
+        from_attributes = True
 
 class HelloTagBase(BaseModel):
     received_from: str
@@ -86,7 +69,7 @@ class HelloTagCreate(HelloTagBase):
 
 class HelloTagResponse(HelloTagBase):
     class Config:
-        from_attributes = True # v2 변경: orm_mode -> from_attributes
+        from_attributes = True
 
 
 # --- ClothingItem Schemas ---
@@ -121,7 +104,7 @@ class ClothingItemResponse(ClothingItemBase):
     hello_tag: Optional[HelloTagResponse] = None
 
     class Config:
-        from_attributes = True # v2 변경: orm_mode -> from_attributes
+        from_attributes = True
 
 
 # --- User Schemas ---
@@ -131,8 +114,16 @@ class UserBase(BaseModel):
     email: EmailStr
     phone_number: Optional[str] = None
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class Msg(BaseModel):
+    msg: str
+
 class UserCreate(UserBase):
     password: str 
+    is_admin: bool = False
 
 class UserUpdate(BaseModel):
     nickname: Optional[str] = None
@@ -161,21 +152,21 @@ class UserResponse(UserBase):
     # [핵심] ID만 주는 게 아니라, ID랑 닉네임을 같이 줍니다! (자동 변환됨)
     neighbors: List[NeighborSummary] = []
 
+    # [수정] neighbors 필드 검증 로직 추가: User 객체 리스트를 ID 리스트로 변환
+    @field_validator('neighbors', mode='before')
+    @classmethod
+    def transform_neighbors(cls, v):
+        if not v:
+            return []
+        # v가 리스트이고 첫 번째 요소가 객체(User 모델)라면 id만 추출
+        if isinstance(v, list) and len(v) > 0 and hasattr(v[0], 'id'):
+            return [user.id for user in v]
+        return v
     class Config:
         from_attributes = True
 
-class UserResponseWithItems(UserResponse):
-    items: List[ClothingItemResponse] = []
-    credits: List['CreditResponse'] = []
-    stories: List['StoryResponse'] = []
-    
     class Config:
-        from_attributes = True # v2 변경: orm_mode -> from_attributes
-
-# [추가] 토큰 관련 스키마(11월 20일)
-class Token(BaseModel):
-    access_token: str
-    token_type: str
+        from_attributes = True
 
 # --- Credit Schemas ---
 
@@ -183,6 +174,12 @@ class CreditBase(BaseModel):
     activity_name: str
     type: CreditTypeEnum
     amount: int
+
+class EarnRequest(BaseModel):
+    user_id: str
+    amount: int
+    activity_name: Optional[str] = "Earned credit"
+    type: Optional[CreditTypeEnum] = CreditTypeEnum.EARNED_EVENT
 
 class CreditCreate(CreditBase):
     user_id: str
@@ -193,10 +190,26 @@ class CreditResponse(CreditBase):
     date: datetime.datetime
 
     class Config:
-        from_attributes = True # v2 변경: orm_mode -> from_attributes
+        from_attributes = True
+
+class UserCreditBalanceResponse(BaseModel):
+    user_id: str
+    balance: int
+
+    class Config:
+        from_attributes = True
+
+# 순환 참조 해결을 위해 UserResponseWithItems는 아래에 정의
+class UserResponseWithItems(UserResponse):
+    items: List[ClothingItemResponse] = []
+    credits: List[CreditResponse] = []
+    stories: List['StoryResponse'] = []
+
+    class Config:
+        from_attributes = True
 
 
-# --- Tag Schemas (for Story) ---
+# --- Tag Schemas ---
 
 class TagBase(BaseModel):
     name: str
@@ -208,7 +221,7 @@ class TagResponse(TagBase):
     id: int
     
     class Config:
-        from_attributes = True # v2 변경: orm_mode -> from_attributes
+        from_attributes = True
 
 
 # --- Story Schemas ---
@@ -236,26 +249,23 @@ class StoryResponse(StoryBase):
     party_id: str
     author: str
     tags: List[TagResponse] = []
-    # likers 관계(relationship)로부터 'likes' 필드를 계산
+
     @computed_field
     @property
     def likes(self) -> int:
-        # crud.get_story가 'likers'를 로드했을 때만 작동
         if hasattr(self, 'likers'):
             return len(self.likers)
         return 0
 
-    #'likers' 관계로부터 'liked_by' 필드(user_id 리스트)를 계산
     @computed_field
     @property
     def liked_by(self) -> List[str]:
-        # crud.get_story가 'likers'를 로드했을 때만 작동
         if hasattr(self, 'likers'):
             return [user.id for user in self.likers]
         return []
 
     class Config:
-        from_attributes = True # v2 변경: orm_mode -> from_attributes
+        from_attributes = True
 
 
 # --- Comment Schemas ---
@@ -274,10 +284,27 @@ class CommentResponse(CommentBase):
     timestamp: datetime.datetime
 
     class Config:
-        from_attributes = True # v2 변경: orm_mode -> from_attributes
+        from_attributes = True
 
 class StoryResponseWithComments(StoryResponse):
     comments: List[CommentResponse] = []
+
+
+# --- Report (Newsletter) Schemas [추가됨] ---
+
+class PerformanceReportBase(BaseModel):
+    title: str
+    date: datetime.date
+    excerpt: str
+
+class PerformanceReportCreate(PerformanceReportBase):
+    pass
+
+class PerformanceReportResponse(PerformanceReportBase):
+    id: str
+
+    class Config:
+        from_attributes = True
 
 
 # --- Reward Schemas ---
@@ -296,7 +323,7 @@ class RewardResponse(RewardBase):
     id: str
     
     class Config:
-        from_attributes = True # v2 변경: orm_mode -> from_attributes
+        from_attributes = True
 
 
 # --- Maker Schemas ---
@@ -316,7 +343,7 @@ class MakerResponse(MakerBase):
     products: List['MakerProductResponse'] = []
 
     class Config:
-        from_attributes = True # v2 변경: orm_mode -> from_attributes
+        from_attributes = True
 
 
 # --- MakerProduct Schemas ---
@@ -335,7 +362,7 @@ class MakerProductResponse(MakerProductBase):
     maker_id: str
     
     class Config:
-        from_attributes = True # v2 변경: orm_mode -> from_attributes
+        from_attributes = True
 
 
 # --- Party Schemas ---
@@ -356,7 +383,7 @@ class PartyParticipantResponse(BaseModel):
     status: PartyParticipantStatusEnum
     
     class Config:
-        from_attributes = True # v2 변경: orm_mode -> from_attributes
+        from_attributes = True
 
 class PartyBase(BaseModel):
     title: str
@@ -391,7 +418,7 @@ class PartyResponse(PartyBase):
     kit_details: Optional[KitDetailsBase] = None
 
     class Config:
-        from_attributes = True # v2 변경: orm_mode -> from_attributes
+        from_attributes = True
 
 
 # --- Admin Schemas (Read-only) ---
@@ -403,7 +430,7 @@ class AdminOverallStats(BaseModel):
     total_events: int
 
     class Config:
-        from_attributes = True # v2 변경: orm_mode -> from_attributes
+        from_attributes = True
 
 class AdminGroupPerformance(BaseModel):
     group_name: str
@@ -412,24 +439,23 @@ class AdminGroupPerformance(BaseModel):
     exchanges: int
 
     class Config:
-        from_attributes = True # v2 변경: orm_mode -> from_attributes
+        from_attributes = True
 
 class DailyActivity(BaseModel):
     date: datetime.date
     count: int
 
     class Config:
-        from_attributes = True # v2 변경: orm_mode -> from_attributes
+        from_attributes = True
 
 class CategoryDistribution(BaseModel):
     category: ClothingCategoryEnum
     count: int
 
     class Config:
-        from_attributes = True # v2 변경: orm_mode -> from_attributes
+        from_attributes = True
 
 
-# --- 순환 참조(ForwardRef)가 사용된 스키마 업데이트 ---
-# v2 변경: update_forward_refs() -> model_rebuild()
+# --- 순환 참조(ForwardRef) 업데이트 ---
 MakerResponse.model_rebuild()
 UserResponseWithItems.model_rebuild()

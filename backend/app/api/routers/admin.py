@@ -2,68 +2,120 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-# (관리자 인증을 위한 별도 의존성 필요)
 from app.api.deps import get_db, get_current_admin_user
-from app.schemas import AdminOverallStats, PartyResponse, ClothingItemResponse
+from app.schemas import (
+    AdminOverallStats, 
+    PartyResponse, 
+    ClothingItemResponse,
+    AdminGroupPerformance,
+    DailyActivity,
+    CategoryDistribution,
+    PartyParticipantResponse
+)
 from app.models import User
 from app.crud import admin as crud_admin, party as crud_party, item as crud_item
 
 router = APIRouter()
 
-@router.get(
-    "/stats", 
-    response_model=AdminOverallStats,
-    summary="관리자 대시보드 전체 통계"
-)
-def get_admin_stats(
+# --- 대시보드 통계 ---
+
+@router.get("/stats", response_model=AdminOverallStats, summary="관리자 대시보드 전체 통계")
+def get_admin_stats(db: Session = Depends(get_db), admin_user: User = Depends(get_current_admin_user)):
+    return crud_admin.get_overall_stats(db)
+
+@router.get("/stats/group-performance", response_model=List[AdminGroupPerformance], summary="그룹(지역)별 성과 통계")
+def get_group_performance_stats(db: Session = Depends(get_db), admin_user: User = Depends(get_current_admin_user)):
+    return crud_admin.get_group_performance(db)
+
+@router.get("/stats/daily-activity", response_model=List[DailyActivity], summary="일일 활동 추이")
+def get_daily_activity_stats(db: Session = Depends(get_db), admin_user: User = Depends(get_current_admin_user)):
+    return crud_admin.get_daily_activity(db)
+
+@router.get("/stats/category-distribution", response_model=List[CategoryDistribution], summary="카테고리별 분포")
+def get_category_distribution_stats(db: Session = Depends(get_db), admin_user: User = Depends(get_current_admin_user)):
+    return crud_admin.get_category_distribution(db)
+
+
+# --- 파티 관리 ---
+
+@router.post("/parties/{party_id}/status", response_model=PartyResponse, summary="파티 상태 변경 (승인/거절)")
+def update_party_approval_status(
+    party_id: str,
+    status_data: dict, # Body: {"status": "UPCOMING" or "REJECTED"}
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_current_admin_user)
 ):
-    """
-    관리자 페이지의 전체 서비스 통계 데이터를 조회합니다.
-    - (관리자 권한 확인)
-    """
-    stats = crud_admin.get_overall_stats(db)
-    return stats
+    """대기 중인 파티를 승인하거나 거절합니다."""
+    new_status = status_data.get("status")
+    if new_status not in ["UPCOMING", "REJECTED"]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+        
+    updated_party = crud_admin.update_party_status(db, party_id, new_status)
+    if not updated_party:
+        raise HTTPException(status_code=404, detail="Party not found")
+    return updated_party
 
-
-@router.post(
-    "/parties/{party_id}/approve", 
-    response_model=PartyResponse,
-    summary="파티 호스팅 승인"
-)
-def approve_party(
+@router.delete("/parties/{party_id}", status_code=status.HTTP_204_NO_CONTENT, summary="파티 삭제")
+def delete_party(
     party_id: str,
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_current_admin_user)
 ):
-    """
-    대기 중인(PENDING_APPROVAL) 파티를 'UPCOMING' 상태로 승인합니다.
-    """
-    db_party = crud_party.get_party(db, party_id=party_id)
-    if not db_party:
-        raise HTTPException(status_code=404, detail="파티를 찾을 수 없습니다.")
-    
-    return crud_party.update_party_status(db=db, db_party=db_party, status="UPCOMING")
+    success = crud_admin.delete_party(db, party_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Party not found")
+    return
 
-
-@router.post(
-    "/items/{item_id}/approve",
-    response_model=ClothingItemResponse,
-    summary="파티 출품 아이템 승인"
-)
-def approve_party_item(
-    item_id: str,
+@router.patch("/parties/{party_id}/participants/{user_id}/status", response_model=PartyParticipantResponse, summary="참가자 상태 변경")
+def update_participant_status(
+    party_id: str,
+    user_id: str,
+    status_data: dict, # Body: {"status": "ACCEPTED" or "REJECTED"}
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_current_admin_user)
 ):
-    """
-    파티에 출품 신청된(PENDING) 아이템을 'APPROVED' 상태로 변경합니다.
-    """
-    db_item = crud_item.get_item(db, item_id=item_id)
-    if not db_item:
-        raise HTTPException(status_code=404, detail="아이템을 찾을 수 없습니다.")
+    new_status = status_data.get("status")
+    updated_participant = crud_admin.update_participant_status(db, party_id, user_id, new_status)
+    
+    if not updated_participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+        
+    # Pydantic 응답 호환성을 위해 닉네임 주입 (User 정보 조인 필요하나 간단히 처리)
+    # 실제로는 crud_admin.update_participant_status 내부에서 User를 조인해서 가져오거나
+    # 여기서 별도로 조회해야 함. 일단은 간단히 처리.
+    participant_user = crud_admin.db.query(User).filter(User.id == user_id).first() # type: ignore
+    nickname = participant_user.nickname if participant_user else "Unknown"
+    
+    # 반환 객체 구성 (ORM 객체 + nickname)
+    response_data = {
+        "user_id": updated_participant.user_id,
+        "nickname": nickname,
+        "status": updated_participant.status
+    }
+    return response_data
 
-    return crud_item.update_item_submission_status(db=db, db_item=db_item, status="APPROVED")
 
-# ... (사용자 관리, 아이템 강제 삭제, 파티 거절 등 라우터) ...
+# --- 아이템 검수 ---
+
+@router.get("/items/pending", response_model=List[ClothingItemResponse], summary="승인 대기 아이템 목록")
+def get_pending_items(
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_admin_user)
+):
+    return crud_admin.get_pending_party_items(db)
+
+@router.post("/items/{item_id}/status", response_model=ClothingItemResponse, summary="아이템 출품 상태 변경")
+def update_item_status(
+    item_id: str,
+    status_data: dict, # Body: {"status": "APPROVED" or "REJECTED"}
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_admin_user)
+):
+    new_status = status_data.get("status")
+    if new_status not in ["APPROVED", "REJECTED"]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+
+    updated_item = crud_admin.update_item_submission_status(db, item_id, new_status)
+    if not updated_item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return updated_item

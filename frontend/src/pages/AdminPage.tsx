@@ -53,12 +53,15 @@ interface AdminPageProps {
   onUpdatePartyApprovalStatus: (partyId: string, newStatus: 'UPCOMING' | 'REJECTED') => void;
 }
 
+// [수정] isOpen prop 및 닫기 동작 개선
 const ParticipantManagerModal: React.FC<{
     party: Party | null;
+    isOpen: boolean; 
     onClose: () => void;
     onUpdateStatus: (partyId: string, userId: string, newStatus: PartyParticipantStatus) => void;
-}> = ({ party, onClose, onUpdateStatus }) => {
-    if (!party) return null;
+}> = ({ party, isOpen, onClose, onUpdateStatus }) => {
+    // [수정] isOpen이 false이면 렌더링하지 않음
+    if (!isOpen || !party) return null;
 
     const participantsByStatus = (status: PartyParticipantStatus) => 
         party.participants.filter(p => p.status === status);
@@ -71,9 +74,16 @@ const ParticipantManagerModal: React.FC<{
     };
 
     return (
-         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl relative animate-fade-in max-h-[80vh] flex flex-col">
+         <div 
+            className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in"
+            onClick={onClose} // [추가] 배경 클릭 시 닫기
+         >
+            <div 
+                className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl relative max-h-[80vh] flex flex-col"
+                onClick={(e) => e.stopPropagation()} // [추가] 내부 클릭 시 닫기 방지
+            >
                 <button
+                    type="button"
                     onClick={onClose}
                     className="absolute top-3 right-3 h-9 w-9 flex items-center justify-center rounded-full text-stone-500 hover:bg-stone-100 hover:text-stone-800 transition-colors z-20"
                     aria-label="Close participant manager"

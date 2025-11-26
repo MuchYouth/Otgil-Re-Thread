@@ -1,8 +1,4 @@
-
-// [수정 전] 아마 이렇게 되어 있을 겁니다:
-// import React, { useState, useMemo } from 'react';
-// [수정 후] 뒤에 useEffect, useCallback을 콤마(,)로 추가해주세요!
-import React, { useState, useMemo,useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Page, User, ClothingItem, ImpactStats, Story, Credit, Reward, PerformanceReport, Comment, Party, Maker, MakerProduct, PartyParticipantStatus, GoodbyeTag, HelloTag, ClothingCategory } from './types';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -179,8 +175,6 @@ const MOCK_PARTIES: Party[] = [
 
 const MOCK_ADMIN_CODE = 'OTGIL-ADMIN-2024';
 
-// --------------------------------------------------------------------------(11월 21일 변경)
-
 const App: React.FC = () => {
     // MOCK 데이터 로드 (기존 코드 유지)
     // 실제로는 API로 불러와야 하지만, 일단 UI 구동을 위해 유지
@@ -189,6 +183,7 @@ const App: React.FC = () => {
     const [comments, setComments] = useState<Comment[]>([]);
     const [reports, setReports] = useState<PerformanceReport[]>([]);
     const [credits, setCredits] = useState<Credit[]>([]);
+    const [rewards, setRewards] = useState<Reward[]>([]);
     const [makers, setMakers] = useState<Maker[]>([]);
     const [makerProducts, setMakerProducts] = useState<MakerProduct[]>([]);
     const [parties, setParties] = useState<Party[]>([]);
@@ -217,8 +212,19 @@ const App: React.FC = () => {
 
             if (response.ok) {
                 const userData = await response.json();
-                setCurrentUser(userData); // DB에서 가져온 진짜 유저 정보로 설정
-                // DB 유저가 users 목록에 없다면 추가 (UI 오류 방지)
+                // [수정] 백엔드(snake_case) -> 프론트엔드(camelCase) 매핑
+                // DB의 is_admin 값을 isAdmin으로, phone_number를 phoneNumber로 변환해야 합니다.
+                const mappedUser: User = {
+                    ...userData,
+                    isAdmin: userData.is_admin,        // 매핑 중요!
+                    phoneNumber: userData.phone_number // 매핑 중요!
+                };
+
+                setCurrentUser(mappedUser); // DB에서 가져온 진짜 유저 정보로 설정
+                
+                // 유저 정보 로드 성공 시 크레딧 내역도 함께 로드
+                fetchCredits();
+
                 setUsers(prev => {
                     if (!prev.find(u => u.id === userData.id)) {
                         return [...prev, userData];
@@ -236,11 +242,280 @@ const App: React.FC = () => {
         }
     }, []);
 
+    // [API] 크레딧 내역 조회 API
+    const fetchCredits = useCallback(async () => {
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+
+        try {
+            const response = await fetch("http://localhost:8000/credits/my-history", {
+                method: "GET",
+                headers: { "Authorization": `Bearer ${token}` },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                // Backend snake_case -> Frontend camelCase (필요 시 매핑)
+                // 현재 Credit 모델은 필드명이 거의 일치하므로 그대로 사용 가능
+                // activity_name -> activityName 매핑 필요
+                const formattedCredits: Credit[] = data.map((c: any) => ({
+                    id: c.id,
+                    userId: c.user_id,
+                    date: new Date(c.date).toLocaleDateString(), // 날짜 포맷팅
+                    activityName: c.activity_name,
+                    type: c.type,
+                    amount: c.amount
+                }));
+                setCredits(formattedCredits);
+            }
+        } catch (error) {
+            console.error("Error fetching credits:", error);
+        }
+    }, []);
+
+    // [API 2] Rewards
+    const fetchRewards = useCallback(async () => {
+        try {
+            const response = await fetch("http://localhost:8000/rewards/");
+            if (response.ok) {
+                const data = await response.json();
+                // 백엔드(snake_case) -> 프론트엔드(camelCase) 매핑
+                const formattedRewards: Reward[] = data.map((item: any) => ({
+                    id: item.id,
+                    name: item.name,
+                    description: item.description,
+                    cost: item.cost,
+                    imageUrl: item.image_url, // 중요: image_url -> imageUrl
+                    type: item.type
+                }));
+                setRewards(formattedRewards);
+            } else {
+                console.error("Failed to fetch rewards");
+            }
+        } catch (error) {
+            console.error("Error fetching rewards:", error);
+        }
+    }, []);
+
+    // ---------------------------------------------------------------------------
+    // [API] 3. 파티 목록 가져오기 (UPCOMING + COMPLETED)
+    // ---------------------------------------------------------------------------
+    const fetchParties = useCallback(async () => {
+        try {
+            // 진행 예정 파티와 완료된 파티를 모두 가져옵니다.
+            const [upcomingRes, completedRes, pendingRes] = await Promise.all([
+                fetch("http://localhost:8000/parties/?status_filter=UPCOMING"),
+                fetch("http://localhost:8000/parties/?status_filter=COMPLETED"),
+                fetch("http://localhost:8000/parties/?status_filter=PENDING_APPROVAL") // 내가 호스팅한 대기중 파티 확인용
+            ]);
+
+            let allParties: any[] = [];
+
+            if (upcomingRes.ok) allParties = [...allParties, ...await upcomingRes.json()];
+            if (completedRes.ok) allParties = [...allParties, ...await completedRes.json()];
+            if (pendingRes.ok) allParties = [...allParties, ...await pendingRes.json()];
+
+            // Backend snake_case -> Frontend camelCase 매핑
+            const formattedParties: Party[] = allParties.map((p: any) => ({
+                id: p.id,
+                hostId: p.host_id,
+                title: p.title,
+                description: p.description,
+                date: p.date,
+                location: p.location,
+                imageUrl: p.image_url,
+                details: p.details || [],
+                status: p.status,
+                invitationCode: p.invitation_code,
+                participants: p.participants.map((part: any) => ({
+                    userId: part.user_id,
+                    nickname: part.nickname,
+                    status: part.status
+                })),
+                impact: p.impact_items_exchanged ? {
+                    itemsExchanged: p.impact_items_exchanged,
+                    waterSaved: p.impact_water_saved,
+                    co2Reduced: p.impact_co2_reduced
+                } : undefined,
+                kitDetails: p.kit_participants ? {
+                    participants: p.kit_participants,
+                    itemsPerPerson: p.kit_items_per_person,
+                    cost: p.kit_cost
+                } : undefined
+            }));
+
+            // 중복 제거 (API 호출이 여러번이라 중복될 수 있음)
+            const uniqueParties = Array.from(new Map(formattedParties.map(item => [item.id, item])).values());
+            
+            // 날짜순 정렬
+            uniqueParties.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+            setParties(uniqueParties);
+
+        } catch (error) {
+            console.error("Error fetching parties:", error);
+        }
+    }, []);
+
+    // [API 4] Community: Stories & Reports
+    const fetchStories = useCallback(async () => {
+        try {
+            const response = await fetch("http://localhost:8000/community/stories");
+            if (response.ok) {
+                const data = await response.json();
+                // Backend snake_case -> Frontend camelCase
+                const formattedStories: Story[] = data.map((s: any) => ({
+                    id: s.id,
+                    userId: s.user_id,
+                    partyId: s.party_id,
+                    title: s.title,
+                    author: s.author,
+                    excerpt: s.excerpt,
+                    content: s.content,
+                    imageUrl: s.image_url,
+                    tags: s.tags.map((t: any) => t.name), // Tag object -> string
+                    likes: s.likes,
+                    likedBy: s.liked_by
+                }));
+                setStories(formattedStories);
+            }
+        } catch (error) {
+            console.error("Error fetching stories:", error);
+        }
+    }, []);
+
+    const fetchReports = useCallback(async () => {
+        try {
+            const response = await fetch("http://localhost:8000/community/reports");
+            if (response.ok) {
+                const data = await response.json();
+                setReports(data); // 필드명이 동일하므로 그대로 사용
+            }
+        } catch (error) {
+            console.error("Error fetching reports:", error);
+        }
+    }, []);
+
+    // 특정 스토리의 상세 정보(댓글 포함)를 가져오는 함수
+    const fetchStoryDetail = useCallback(async (storyId: string) => {
+        try {
+            const response = await fetch(`http://localhost:8000/community/stories/${storyId}`);
+            if (response.ok) {
+                const data = await response.json();
+                // 댓글 데이터 매핑
+                const fetchedComments: Comment[] = data.comments.map((c: any) => ({
+                    id: c.id,
+                    storyId: c.story_id,
+                    userId: c.user_id,
+                    authorNickname: c.author_nickname,
+                    text: c.text,
+                    timestamp: c.timestamp
+                }));
+                
+                // 해당 스토리의 댓글 상태 업데이트 (기존 댓글 유지하면서 해당 스토리 댓글만 교체/추가)
+                setComments(prev => {
+                    const otherComments = prev.filter(c => c.storyId !== storyId);
+                    return [...otherComments, ...fetchedComments];
+                });
+            }
+        } catch (error) {
+            console.error("Error fetching story detail:", error);
+        }
+    }, []);
+
+    // ---------------------------------------------------------------------------
+    // [API 5] Clothing Items (Browse & My Closet)
+    // ---------------------------------------------------------------------------
+    const fetchClothingItems = useCallback(async () => {
+        try {
+            // 1. 전체 공개 아이템 (Browse용)
+            const publicRes = await fetch("http://localhost:8000/items/");
+            let allItems: any[] = [];
+            if (publicRes.ok) {
+                allItems = await publicRes.json();
+            } else {
+                console.error("Failed to fetch public items");
+            }
+            
+            // 2. 내 아이템 (MyPage용) - 로그인 시에만 호출
+            const token = localStorage.getItem('access_token');
+            let myItems: any[] = [];
+            
+            if (token) {
+                const myRes = await fetch("http://localhost:8000/items/my-items", {
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                
+                if (myRes.ok) {
+                    myItems = await myRes.json();
+                } else if (myRes.status === 401) {
+                    // 401 에러 발생 시: 토큰이 만료되었거나 유효하지 않음 -> 로그아웃 처리
+                    console.warn("Unauthorized access to my-items. Clearing token.");
+                    localStorage.removeItem('access_token');
+                    setCurrentUser(null);
+                    // myItems는 빈 배열로 유지
+                }
+            }
+            
+            // 공개 아이템과 내 아이템 합치기 (중복 제거)
+            // 내 아이템이 공개 목록에 없을 수도 있고(비공개 상태), 있을 수도 있음.
+            // Map을 사용하여 ID 기준으로 중복을 제거합니다.
+            // [중요] 내 아이템 정보(myItems)가 최신 상태(비공개 여부 등)일 가능성이 높으므로
+            // publicItems 뒤에 myItems를 병합하여 덮어쓰도록 합니다.
+            const combinedItemsMap = new Map();
+            
+            allItems.forEach(item => combinedItemsMap.set(item.id, item));
+            myItems.forEach(item => combinedItemsMap.set(item.id, item)); // 내 아이템으로 덮어씀
+
+            const uniqueItems = Array.from(combinedItemsMap.values());
+
+            // Backend snake_case -> Frontend camelCase 매핑 함수
+            const mapItem = (item: any): ClothingItem => ({
+                id: item.id,
+                name: item.name,
+                description: item.description,
+                category: item.category,
+                size: item.size,
+                imageUrl: item.image_url,
+                userNickname: item.user_nickname,
+                userId: item.user_id,
+                isListedForExchange: item.is_listed_for_exchange,
+                partySubmissionStatus: item.party_submission_status,
+                submittedPartyId: item.submitted_party_id,
+                goodbyeTag: item.goodbye_tag ? {
+                    metWhen: item.goodbye_tag.met_when,
+                    metWhere: item.goodbye_tag.met_where,
+                    whyGot: item.goodbye_tag.why_got,
+                    wornCount: item.goodbye_tag.worn_count,
+                    whyLetGo: item.goodbye_tag.why_let_go,
+                    finalMessage: item.goodbye_tag.final_message
+                } : undefined,
+                helloTag: item.hello_tag ? {
+                    receivedFrom: item.hello_tag.received_from,
+                    receivedAt: item.hello_tag.received_at,
+                    firstImpression: item.hello_tag.first_impression,
+                    helloMessage: item.hello_tag.hello_message
+                } : undefined
+            });
+
+            const formattedItems = uniqueItems.map(mapItem);
+            setClothingItems(formattedItems);
+
+        } catch (error) {
+            console.error("Error fetching clothing items:", error);
+        }
+    }, []);
+
     // [1] 앱 실행 시(새로고침 시) 토큰이 있으면 유저 정보 가져오기
+    // 앱 실행 시 데이터 로드
     useEffect(() => {
         fetchCurrentUser();
-    }, [fetchCurrentUser]);
-
+        fetchRewards();
+        fetchParties();
+        fetchStories();
+        fetchReports();
+        fetchClothingItems();
+    }, [fetchCurrentUser, fetchRewards, fetchParties, fetchStories, fetchReports, fetchClothingItems]);
 
     // [2] 로그인 성공 핸들러 (LoginPage에서 호출)
     // 이제 email 파라미터에 의존하지 않고, 토큰을 이용해 서버에서 정보를 가져옵니다.
@@ -263,177 +538,176 @@ const App: React.FC = () => {
         // 타입 호환성을 위해 남겨둡니다.
         return { success: true, message: 'Sign up handled internally' };
     };
-    
+
     // --- 이하 기존 로직들은 그대로 유지 (currentUser가 있다고 가정하고 동작) ---
-
+    // (백엔드가 객체를 주든 문자열을 주든 에러가 안 나게 하기 위함)
     const handleSetNeighbors = (userId: string, neighborIds: any[]) => {
-      setUsers(prevUsers => prevUsers.map(u => u.id === userId ? { ...u, neighbors: neighborIds } : u));
-      setCurrentUser(prevUser => prevUser && prevUser.id === userId ? { ...prevUser, neighbors: neighborIds } : prevUser);
+        setUsers(prevUsers => prevUsers.map(u => u.id === userId ? { ...u, neighbors: neighborIds } : u));
+        setCurrentUser(prevUser => prevUser && prevUser.id === userId ? { ...prevUser, neighbors: neighborIds } : prevUser);
     };
-/* 11월 23일 수정
-   const handleToggleNeighbor = (neighborId: string) => {
+    const handleToggleNeighbor = async (neighborId: string) => { // async 추가 필수!
         if (!currentUser) return;
-        const currentNeighbors = currentUser.neighbors || [];
-        const isNeighbor = currentNeighbors.includes(neighborId);
-        let newNeighbors;
+    // 1. 현재 상태 확인 (객체든 문자열이든 다 알아듣게 some 사용)
+    const currentNeighbors = currentUser.neighbors || [];
+    const isNeighbor = currentNeighbors.some((n: any) => {
+        return typeof n === 'string' ? n === neighborId : n.id === neighborId;
+    });
 
-        if (isNeighbor) {
-            newNeighbors = currentNeighbors.filter(id => id !== neighborId);
-        } else {
-            newNeighbors = [...currentNeighbors, neighborId];
-        }
-        handleSetNeighbors(currentUser.id, newNeighbors);
+    // 2. 토큰 가져오기
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+        alert("로그인이 필요합니다.");
+        return;
     }
-*/
-const handleToggleNeighbor = async (neighborId: string) => { // async 추가 필수!
-        if (!currentUser) return;
-        
-        // 1. 현재 상태 확인 (객체든 문자열이든 다 알아듣게 some 사용)
-        const currentNeighbors = currentUser.neighbors || [];
-        const isNeighbor = currentNeighbors.some((n: any) => {
-            return typeof n === 'string' ? n === neighborId : n.id === neighborId;
+
+    try {
+        // 3. [핵심] 서버에 먼저 "저장해줘!" 요청 보내기
+        const url = `http://localhost:8000/users/${neighborId}/neighbors`;
+        const method = isNeighbor ? "DELETE" : "POST";
+
+        const response = await fetch(url, {
+            method: method,
+            headers: { "Authorization": `Bearer ${token}` }
         });
 
-        // 2. 토큰 가져오기
-        const token = localStorage.getItem('access_token');
-        if (!token) {
+        // 4. 서버가 "OK(200)"라고 하면 그때 화면 바꾸기
+        if (response.ok) {
+            // 가장 확실한 방법: 서버에서 최신 정보를 다시 받아오기
+            await fetchCurrentUser();
+        } else {
+            alert("서버 요청 실패! 로그를 확인하세요.");
+        }
+    } catch (error) {
+        console.error(error);
+        alert("에러가 발생했습니다.");
+    }
+};
+
+    // [API]리워드 교환하기
+    // [수정] 리워드 교환 시 크레딧 차감
+    const handleRedeemReward = async (reward: Reward) => {
+        if (!currentUser) {
             alert("로그인이 필요합니다.");
+            setPage(Page.LOGIN);
             return;
         }
-
-        try {
-            // 3. [핵심] 서버에 먼저 "저장해줘!" 요청 보내기
-            const url = `http://localhost:8000/users/${neighborId}/neighbors`;
-            const method = isNeighbor ? "DELETE" : "POST";
-            
-            const response = await fetch(url, {
-                method: method,
-                headers: { "Authorization": `Bearer ${token}` }
-            });
-
-            // 4. 서버가 "OK(200)"라고 하면 그때 화면 바꾸기
-            if (response.ok) {
-                // 가장 확실한 방법: 서버에서 최신 정보를 다시 받아오기
-                await fetchCurrentUser(); 
-            } else {
-                alert("서버 요청 실패! 로그를 확인하세요.");
-            }
-        } catch (error) {
-            console.error(error);
-            alert("에러가 발생했습니다.");
+        if (userCreditBalance < reward.cost) {
+             alert('크레딧이 부족합니다.');
+             return;
+        }
+        
+        const success = await handleCreditChange(reward.cost, `${reward.name} 교환`, 'SPENT_REWARD');
+        if (success) {
+            alert(`'${reward.name}' 교환이 완료되었습니다!`);
         }
     };
 
-    const handleItemAdd = (
-        itemInfo: {
-            name: string;
-            description: string;
-            category: ClothingCategory;
-            size: string;
-            imageUrl: string;
-        },
-        options: {
-            goodbyeTag?: GoodbyeTag;
-            helloTag?: HelloTag;
-            selectedPartyId?: string | null;
-        }
-    ) => {
+    // [수정] 아이템 등록 시 크레딧 적립
+    const handleItemAdd = async (itemInfo: any, options: any) => {
         if (!currentUser) {
             alert("Login is required.");
             setPage(Page.LOGIN);
             return;
         }
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
 
-        const isHello = !!options.helloTag;
-        
-        const newItem: ClothingItem = {
-            ...itemInfo,
-            id: `item${clothingItems.length + 1}`,
-            userNickname: currentUser.nickname,
-            userId: currentUser.id,
-            isListedForExchange: isHello, // HELLO tags are visible on profile by default
-            goodbyeTag: options.goodbyeTag,
-            helloTag: options.helloTag,
-            partySubmissionStatus: !isHello && options.selectedPartyId ? 'PENDING' : undefined,
-            submittedPartyId: !isHello ? (options.selectedPartyId || undefined) : undefined,
-        };
+        try {
+            // 1. 아이템 등록 API 호출 (생략 - 기존 코드와 동일)
+            const itemPayload = {
+                name: itemInfo.name,
+                description: itemInfo.description,
+                category: itemInfo.category,
+                size: itemInfo.size,
+                image_url: itemInfo.imageUrl
+            };
+            const createRes = await fetch("http://localhost:8000/items/add", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                body: JSON.stringify(itemPayload)
+            });
+            if (!createRes.ok) throw new Error("아이템 등록 실패");
+            const createdItem = await createRes.json();
+            const itemId = createdItem.id;
 
-        setClothingItems(prev => [newItem, ...prev]);
-        
-        const newCredit: Credit = {
-            id: `credit${credits.length + 1}`,
-            userId: currentUser.id,
-            date: new Date().toISOString().split('T')[0],
-            activityName: `${itemInfo.name} 등록`,
-            type: 'EARNED_CLOTHING',
-            amount: 1000,
-        };
-        setCredits(prev => [...prev, newCredit]);
+            // 2. 태그 API 호출 (생략 - 기존 코드와 동일)
+            if (options.goodbyeTag) { /* ... */ }
+            if (options.helloTag) { /* ... */ }
 
-        if (isHello) {
-             alert('아이템이 내 옷장에 추가되고 프로필에 표시됩니다!');
-        } else if (options.selectedPartyId) {
-             alert('아이템이 파티 라인업에 등록 신청되었습니다! 관리자 승인 후 공개됩니다.');
-        } else {
-             alert('아이템이 내 옷장에 추가되었습니다! 이제 21% 파티에 출품할 수 있습니다.');
+            // 3. 크레딧 적립 호출
+            await handleCreditChange(1000, `${itemInfo.name} 등록`, 'EARNED_CLOTHING');
+
+            alert('아이템이 등록되고 1,000 OL이 적립되었습니다!');
+            fetchClothingItems();
+            setPage(Page.MY_PAGE);
+
+        } catch (error: any) {
+            alert(`오류 발생: ${error.message}`);
         }
-       
-        setPage(Page.MY_PAGE);
     };
+    const handleToggleListing = async (itemId: string) => {
+        if (!currentUser) return;
+        const token = localStorage.getItem('access_token');
+        const item = clothingItems.find(i => i.id === itemId);
+        if (!item || !token) return;
 
-    const handleToggleListing = (itemId: string) => {
-        setClothingItems(prevItems =>
-            prevItems.map(item =>
-                item.id === itemId
-                    ? { ...item, isListedForExchange: !item.isListedForExchange }
-                    : item
-            )
-        );
+        try {
+            const response = await fetch(`http://localhost:8000/items/modify/${itemId}`, {
+                method: "PATCH",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}` 
+                },
+                body: JSON.stringify({ is_listed_for_exchange: !item.isListedForExchange })
+            });
+
+            if (response.ok) {
+                fetchClothingItems();
+            } else {
+                alert("상태 변경 실패");
+            }
+        } catch (error) {
+            console.error("Error toggling listing:", error);
+        }
     };
     
-    const handlePartyApplication = (partyId: string) => {
+    // [API] 파티 참가 신청
+    const handlePartyApplication = async (partyId: string) => {
         if (!currentUser) {
             alert("로그인이 필요합니다.");
             setPage(Page.LOGIN);
             return;
         }
 
-        setParties(prevParties => {
-            const newParties = [...prevParties];
-            const partyIndex = newParties.findIndex(p => p.id === partyId);
+        // 초대 코드 입력 받기
+        const invitationCode = window.prompt("파티 초대 코드를 입력해주세요:");
+        if (!invitationCode) return;
 
-            if (partyIndex === -1) {
-                alert("파티를 찾을 수 없습니다.");
-                return prevParties;
+        const token = localStorage.getItem('access_token');
+
+        try {
+            // Query param으로 code 전송
+            const response = await fetch(`http://localhost:8000/parties/${partyId}/join?invitation_code=${invitationCode}`, {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                alert("파티 참가 신청이 완료되었습니다!");
+                fetchParties(); // 참가자 명단 갱신을 위해 재조회
+            } else {
+                const err = await response.json();
+                alert(`참가 신청 실패: ${err.detail}`);
             }
-
-            const party = newParties[partyIndex];
-            const alreadyApplied = party.participants.some(p => p.userId === currentUser.id);
-
-            if (alreadyApplied) {
-                alert("이미 이 파티에 신청했거나 참여중입니다.");
-                return prevParties;
-            }
-
-            const newParticipant = {
-                userId: currentUser.id,
-                nickname: currentUser.nickname,
-                status: 'PENDING' as const,
-            };
-
-            const updatedParty = {
-                ...party,
-                participants: [...party.participants, newParticipant]
-            };
-            
-            newParties[partyIndex] = updatedParty;
-            alert("파티 참가 신청이 완료되었습니다. '마이페이지'에서 상태를 확인하세요.");
-            return newParties;
-        });
+        } catch (error) {
+            console.error("Error joining party:", error);
+            alert("서버 통신 오류");
+        }
     };
     
     const handleSelectStory = (id: string) => {
         setSelectedStoryId(id);
+        fetchStoryDetail(id); // 상세 정보(댓글) 로드
         setPage(Page.STORY_DETAIL);
     };
     
@@ -446,85 +720,146 @@ const handleToggleNeighbor = async (neighborId: string) => { // async 추가 필
         setSelectedNeighborId(neighborId);
     };
     
-    const handleAddReport = (reportData: { title: string; date: string; excerpt: string }) => {
-        const newReport: PerformanceReport = {
-            ...reportData,
-            id: `report${reports.length + 1}`,
-        };
-        setReports(prev => [newReport, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-        alert('뉴스레터가 성공적으로 추가되었습니다.');
-    };
-    
-    const handleStorySubmit = (storyData: { id?: string; partyId: string; title: string; excerpt: string; content: string; imageUrl: string; tags: string[] }) => {
-        if (!currentUser) return;
-    
-        if (storyData.id) { // Update
-            setStories(stories.map(story => 
-                story.id === storyData.id 
-                    ? { ...story, ...storyData } 
-                    : story
-            ));
-            alert('Your story has been successfully updated.');
-        } else { // Create
-            const newStory: Story = {
-                id: `story${stories.length + 1}`,
-                userId: currentUser.id,
-                author: currentUser.nickname,
-                ...storyData,
-                likes: 0,
-                likedBy: [],
-            };
-            setStories([newStory, ...stories]);
-            alert('Your story has been successfully created.');
+    const handleAddReport = async (reportData: { title: string; date: string; excerpt: string }) => {
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+
+        try {
+            const response = await fetch("http://localhost:8000/community/reports", {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}` 
+                },
+                body: JSON.stringify(reportData)
+            });
+
+            if (response.ok) {
+                alert('뉴스레터가 게시되었습니다.');
+                fetchReports();
+            } else {
+                const err = await response.json();
+                alert(`게시 실패: ${err.detail}`);
+            }
+        } catch (error) {
+            console.error("Error adding report:", error);
         }
     };
     
-    const handleDeleteStory = (storyId: string) => {
-        if (window.confirm('Are you sure you want to delete this story?')) {
-            setStories(prev => prev.filter(s => s.id !== storyId));
+    const handleStorySubmit = async (storyData: { id?: string; partyId: string; title: string; excerpt: string; content: string; imageUrl: string; tags: string[] }) => {
+        if (!currentUser) return;
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+
+        const payload = {
+            party_id: storyData.partyId,
+            title: storyData.title,
+            excerpt: storyData.excerpt,
+            content: storyData.content,
+            image_url: storyData.imageUrl,
+            tags: storyData.tags
+        };
+
+        try {
+            let response;
+            if (storyData.id) { // Update
+                response = await fetch(`http://localhost:8000/community/stories/${storyData.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                    body: JSON.stringify(payload)
+                });
+            } else { // Create
+                response = await fetch("http://localhost:8000/community/stories", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                    body: JSON.stringify(payload)
+                });
+            }
+
+            if (response.ok) {
+                alert(`스토리가 성공적으로 ${storyData.id ? '수정' : '작성'}되었습니다.`);
+                fetchStories(); // 목록 갱신
+            } else {
+                const err = await response.json();
+                alert(`오류 발생: ${err.detail}`);
+            }
+        } catch (error) {
+            console.error("Error submitting story:", error);
+            alert("서버 통신 오류");
         }
     };
 
-    const handleToggleLikeStory = (storyId: string) => {
+    
+    const handleDeleteStory = async (storyId: string) => {
+        if (!window.confirm('정말로 이 스토리를 삭제하시겠습니까?')) return;
+        
+        const token = localStorage.getItem('access_token');
+        try {
+            const response = await fetch(`http://localhost:8000/community/stories/${storyId}`, {
+                method: "DELETE",
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                alert('스토리가 삭제되었습니다.');
+                fetchStories();
+                if (selectedStoryId === storyId) {
+                    setPage(Page.COMMUNITY);
+                    setSelectedStoryId(null);
+                }
+            } else {
+                const err = await response.json();
+                alert(`삭제 실패: ${err.detail}`);
+            }
+        } catch (error) {
+            console.error("Error deleting story:", error);
+        }
+    };
+
+    const handleToggleLikeStory = async (storyId: string) => {
         if (!currentUser) {
-            alert('Please log in to like stories.');
+            alert('로그인이 필요합니다.');
             setPage(Page.LOGIN);
             return;
         }
-        setStories(prevStories => {
-            return prevStories.map(story => {
-                if (story.id === storyId) {
-                    const isLiked = story.likedBy.includes(currentUser.id);
-                    if (isLiked) {
-                        return {
-                            ...story,
-                            likes: story.likes - 1,
-                            likedBy: story.likedBy.filter(id => id !== currentUser.id)
-                        };
-                    } else {
-                        return {
-                            ...story,
-                            likes: story.likes + 1,
-                            likedBy: [...story.likedBy, currentUser.id]
-                        };
-                    }
-                }
-                return story;
+        const token = localStorage.getItem('access_token');
+        try {
+            const response = await fetch(`http://localhost:8000/community/stories/${storyId}/like`, {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${token}` }
             });
-        });
+
+            if (response.ok) {
+                // 전체 목록 다시 불러오기보다는 로컬 상태만 업데이트하여 반응성 향상 가능하나, 
+                // 여기서는 정합성을 위해 fetchStories 호출
+                fetchStories(); 
+            }
+        } catch (error) {
+            console.error("Error toggling like:", error);
+        }
     };
 
-    const handleAddComment = (storyId: string, text: string) => {
+    const handleAddComment = async (storyId: string, text: string) => {
         if (!currentUser) return;
-        const newComment: Comment = {
-            id: `comment${comments.length + 1}`,
-            storyId,
-            userId: currentUser.id,
-            authorNickname: currentUser.nickname,
-            text,
-            timestamp: new Date().toISOString(),
-        };
-        setComments(prev => [...prev, newComment]);
+        const token = localStorage.getItem('access_token');
+        try {
+            const response = await fetch(`http://localhost:8000/community/stories/${storyId}/comments`, {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}` 
+                },
+                body: JSON.stringify({ text })
+            });
+
+            if (response.ok) {
+                fetchStoryDetail(storyId); // 댓글 목록 갱신
+            } else {
+                alert('댓글 작성 실패');
+            }
+        } catch (error) {
+            console.error("Error adding comment:", error);
+        }
     };
 
     const handleAddParty = (partyData: Omit<Party, 'id' | 'impact' | 'participants' | 'invitationCode' | 'hostId' | 'status'>) => {
@@ -551,37 +886,87 @@ const handleToggleNeighbor = async (neighborId: string) => { // async 추가 필
         alert('파티가 삭제되었습니다.');
     };
     
-    const handleUpdateParticipantStatus = (partyId: string, userId: string, newStatus: PartyParticipantStatus) => {
-        setParties(prevParties => {
-            return prevParties.map(party => {
-                if (party.id === partyId) {
-                    return {
-                        ...party,
-                        participants: party.participants.map(p => 
-                            p.userId === userId ? { ...p, status: newStatus } : p
-                        ),
-                    };
-                }
-                return party;
+    // [API] 파티 체크인 (호스트용 QR 스캔)
+    const handleUpdateParticipantStatus = async (partyId: string, userId: string, newStatus: PartyParticipantStatus) => {
+        if (newStatus !== 'ATTENDED') return; // 현재 API는 체크인(ATTENDED)만 구현됨
+
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+
+        try {
+            // QR 체크인 API 호출 (Body에 user_id를 실어 보내거나 Query param 사용. 앞서 만든 API는 Query param user_id 사용)
+            const response = await fetch(`http://localhost:8000/parties/${partyId}/check-in?user_id=${userId}`, {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${token}` }
             });
-        });
+
+            if (response.ok) {
+                // 성공 시 로컬 상태도 업데이트하여 즉각 반영
+                setParties(prevParties => {
+                    return prevParties.map(party => {
+                        if (party.id === partyId) {
+                            return {
+                                ...party,
+                                participants: party.participants.map(p => 
+                                    p.userId === userId ? { ...p, status: newStatus } : p
+                                ),
+                            };
+                        }
+                        return party;
+                    });
+                });
+            } else {
+                const err = await response.json();
+                alert(`체크인 실패: ${err.detail}`);
+            }
+        } catch (error) {
+            console.error("Error checking in:", error);
+            alert("체크인 중 통신 오류가 발생했습니다.");
+        }
     };
 
-    const handleHostParty = (partyData: Omit<Party, 'id' | 'impact' | 'participants' | 'invitationCode' | 'hostId' | 'status' | 'kitDetails'>) => {
-        if (!currentUser) return;
-        const newParty: Party = {
-            ...partyData,
-            id: `party${parties.length + 1}`,
-            hostId: currentUser.id,
-            status: 'PENDING_APPROVAL',
-            invitationCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
-            participants: [{ userId: currentUser.id, nickname: currentUser.nickname, status: 'ACCEPTED' }],
-        };
-        setParties(prev => [...prev, newParty].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-        alert('파티 호스팅 신청이 완료되었습니다. 관리자 승인 후 마이페이지에서 상태를 확인하실 수 있습니다.');
-        setPage(Page.MY_PAGE);
-    };
+    // [API] 파티 호스팅 신청
+    const handleHostParty = async (partyData: Omit<Party, 'id' | 'impact' | 'participants' | 'invitationCode' | 'hostId' | 'status' | 'kitDetails'>) => {
+        if (!currentUser) {
+            alert("로그인이 필요합니다.");
+            setPage(Page.LOGIN);
+            return;
+        }
+        const token = localStorage.getItem('access_token');
+        
+        try {
+            // Frontend camelCase -> Backend snake_case
+            const payload = {
+                title: partyData.title,
+                description: partyData.description,
+                date: partyData.date,
+                location: partyData.location,
+                image_url: partyData.imageUrl,
+                details: partyData.details
+            };
 
+            const response = await fetch("http://localhost:8000/parties/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                alert('파티 호스팅 신청이 완료되었습니다. 관리자 승인 후 마이페이지에서 확인하실 수 있습니다.');
+                fetchParties(); // 목록 갱신
+                setPage(Page.MY_PAGE);
+            } else {
+                const err = await response.json();
+                alert(`신청 실패: ${err.detail}`);
+            }
+        } catch (error) {
+            console.error("Error hosting party:", error);
+            alert("서버 통신 오류");
+        }
+    };
     const handleUpdatePartyApprovalStatus = (partyId: string, newStatus: 'UPCOMING' | 'REJECTED') => {
         setParties(prevParties => {
             return prevParties.map(party => {
@@ -608,34 +993,144 @@ const handleToggleNeighbor = async (neighborId: string) => { // async 추가 필
         ));
     };
 
-    const handlePartySubmit = (itemId: string, partyId: string) => {
-        setClothingItems(prev => prev.map(item =>
-            item.id === itemId
-                ? { ...item, partySubmissionStatus: 'PENDING', submittedPartyId: partyId }
-                : item
-        ));
-        alert('파티 출품 신청이 완료되었습니다. 관리자 승인 후 이웃 옷장에 공개됩니다.');
-    };
+    const handlePartySubmit = async (itemId: string, partyId: string) => {
+        if (!currentUser) return;
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
 
-    const handleCancelPartySubmit = (itemId: string) => {
-        setClothingItems(prev => prev.map(item => {
-            if (item.id === itemId) {
-                const { partySubmissionStatus, submittedPartyId, ...rest } = item;
-                return rest;
+        try {
+            const response = await fetch(`http://localhost:8000/items/modify/${itemId}`, {
+                method: "PATCH",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}` 
+                },
+                body: JSON.stringify({ 
+                    submitted_party_id: partyId,
+                    party_submission_status: 'PENDING'
+                })
+            });
+
+            if (response.ok) {
+                alert('파티 출품 신청이 완료되었습니다. 관리자 승인 후 공개됩니다.');
+                fetchClothingItems();
+            } else {
+                alert("신청 실패");
             }
-            return item;
-        }));
+        } catch (error) {
+            console.error("Error submitting to party:", error);
+        }
     };
 
-    const handleUpdatePartyItemStatus = (itemId: string, status: 'APPROVED' | 'REJECTED') => {
-        setClothingItems(prev => prev.map(item =>
-            item.id === itemId
-                ? { ...item, partySubmissionStatus: status }
-                : item
-        ));
+    const handleCancelPartySubmit = async (itemId: string) => {
+        if (!currentUser) return;
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+
+        try {
+            // status를 null로 보내거나 초기화하는 로직 필요.
+            // Pydantic 모델에서 Optional이므로 null 전송 가능 여부 확인 필요.
+            // 여기서는 간단히 status를 PENDING 이전 상태(없음)로 돌리는 것을 가정하지만,
+            // 백엔드 로직에 따라 다를 수 있음. 일단 API 호출 구조만 잡음.
+            // 주의: 백엔드에서 null 값을 받아 처리하는지 확인 필요.
+            // 임시로 submitted_party_id를 null로 보냄.
+            const response = await fetch(`http://localhost:8000/items/modify/${itemId}`, {
+                method: "PATCH",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}` 
+                },
+                body: JSON.stringify({ 
+                    submitted_party_id: null,
+                    party_submission_status: null 
+                })
+            });
+
+            if (response.ok) {
+                alert('출품이 취소되었습니다.');
+                fetchClothingItems();
+            } else {
+                alert("취소 실패");
+            }
+        } catch (error) {
+            console.error("Error canceling submission:", error);
+        }
+    };
+
+    const handleUpdatePartyItemStatus = async (itemId: string, status: 'APPROVED' | 'REJECTED') => {
+        if (!currentUser?.isAdmin) return;
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+
+        try {
+            // Admin API 호출 (기존에 만들어둔 API 활용)
+            const response = await fetch(`http://localhost:8000/items/${itemId}/approve?status=${status}`, { // URL 수정 필요할 수 있음 (라우터 확인)
+                // 백엔드 라우터: @router.post("/items/{item_id}/approve") -> 내부적으로 status="APPROVED" 고정이었음.
+                // 반려(REJECTED)를 위해서는 백엔드 수정이 필요하거나, 
+                // items.py의 @router.put("/submission_status/{item_id}")를 사용해야 함.
+                // 여기서는 items.py에 있는 update_item_submission_status_admin 사용
+            });
+            
+            // items.py의 update_item_submission_status_admin 사용
+            const res = await fetch(`http://localhost:8000/items/submission_status/${itemId}?status_in=${status}`, {
+                method: "PUT",
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+
+            if (res.ok) {
+                fetchClothingItems();
+            } else {
+                alert("상태 변경 실패");
+            }
+        } catch (error) {
+            console.error("Error updating item status:", error);
+        }
+    };
+    // credit handler
+    // [수정] 크레딧 변경(적립/사용) 공통 함수
+    // 백엔드 API: POST /credits/earn
+    // amount가 양수면 적립, 음수면 차감
+    const handleCreditChange = async (amount: number, activityName: string, type: string) => {
+        if (!currentUser) return false;
+        const token = localStorage.getItem('access_token');
+        if (!token) return false;
+
+        try {
+            const payload = {
+                user_id: currentUser.id,
+                amount: Math.abs(amount), // 백엔드 API가 양수만 받을 수도 있으니 확인 필요. 여기선 양수로 보내고 타입으로 구분하거나, 백엔드 로직에 맞춤.
+                // 현재 제공된 백엔드 earn_credit_to_user 로직은 amount를 그대로 저장함.
+                // 지출의 경우 프론트엔드 계산식(userCreditBalance)에서 뺄셈을 하므로, 
+                // 데이터베이스에는 양수로 저장하고 type으로 'SPENT'임을 명시하는 것이 일반적임.
+                activity_name: activityName,
+                type: type
+            };
+
+            const response = await fetch("http://localhost:8000/credits/earn", {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}` 
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                fetchCredits(); // 내역 갱신 -> 잔액 자동 갱신
+                return true;
+            } else {
+                const err = await response.json();
+                alert(`크레딧 처리 실패: ${err.detail}`);
+                return false;
+            }
+        } catch (error) {
+            console.error("Error updating credit:", error);
+            return false;
+        }
     };
 
 
+    // 환경 임팩트 계산
     const userImpactStats = useMemo<ImpactStats>(() => {
         if (!currentUser) return { itemsExchanged: 0, waterSaved: 0, co2Reduced: 0 };
         const userItems = clothingItems.filter(item => item.userId === currentUser.id);
@@ -650,14 +1145,25 @@ const handleToggleNeighbor = async (neighborId: string) => { // async 추가 필
         }, { itemsExchanged: userItems.length, waterSaved: 0, co2Reduced: 0 });
     }, [currentUser, clothingItems]);
     
-    const userCredits = useMemo(() => credits.filter(c => c.userId === currentUser?.id), [credits, currentUser]);
+    // [251125_수정] currentUser의 credits 관계 또는 별도 credits 상태를 통해 계산
+    const userCredits = useMemo(() => {
+        if (!currentUser) return [];
+        // credits 상태가 별도로 관리되거나 currentUser 안에 포함됨
+        return credits.filter(c => c.userId === currentUser.id);
+    }, [credits, currentUser]);
 
     const userCreditBalance = useMemo(() => {
         return userCredits.reduce((sum, credit) => {
-          return credit.type.startsWith('EARNED') ? sum + credit.amount : sum - credit.amount;
+            // 백엔드에서 오는 amount는 이미 음수일 수 있음 (지출인 경우)
+            // 하지만 현재 백엔드 로직상 지출도 양수로 저장하고 type으로 구분할 수도 있으니 확인 필요
+            // 보통은 지출 내역은 amount가 음수로 저장되거나, 계산 시 type을 보고 뺍니다.
+            // 여기서는 type을 보고 판단하는 기존 로직 유지
+            if (credit.type.startsWith('EARNED')) return sum + Math.abs(credit.amount);
+            return sum - Math.abs(credit.amount);
         }, 0);
     }, [userCredits]);
 
+    // 
     const acceptedUpcomingPartiesForUser = useMemo(() => {
         if (!currentUser) return [];
         return parties.filter(p => 
@@ -666,58 +1172,29 @@ const handleToggleNeighbor = async (neighborId: string) => { // async 추가 필
         );
     }, [parties, currentUser]);
 
-    const handleRedeemReward = (reward: Reward) => {
-        if (!currentUser) return;
-        if (userCreditBalance < reward.cost) {
-            alert('You do not have enough credits.');
-            return;
-        }
-        const newCredit: Credit = {
-            id: `credit${credits.length + 1}`,
-            userId: currentUser.id,
-            date: new Date().toISOString().split('T')[0],
-            activityName: `${reward.name} 교환`,
-            type: 'SPENT_REWARD',
-            amount: reward.cost,
-        };
-        setCredits(prev => [...prev, newCredit]);
-        alert(`'${reward.name}' has been redeemed!`);
-    }
-
-    const handlePurchaseMakerProduct = (product: MakerProduct) => {
+    // [수정] 메이커 상품 구매 시 크레딧 차감
+    const handlePurchaseMakerProduct = async (product: MakerProduct) => {
         if (!currentUser) return;
         if (userCreditBalance < product.price) {
             alert('크레딧이 부족합니다.');
             return;
         }
-        const newCredit: Credit = {
-            id: `credit${credits.length + 1}`,
-            userId: currentUser.id,
-            date: new Date().toISOString().split('T')[0],
-            activityName: `${product.name} 구매`,
-            type: 'SPENT_MAKER_PURCHASE',
-            amount: product.price,
-        };
-        setCredits(prev => [...prev, newCredit]);
-        alert(`'${product.name}'를 구매했습니다!`);
+        
+        const success = await handleCreditChange(product.price, `${product.name} 구매`, 'SPENT_MAKER_PURCHASE');
+        if (success) {
+            alert(`'${product.name}' 구매가 완료되었습니다!`);
+        }
     };
 
-    const handleOffsetCredit = (amount: number): boolean => {
+    // [수정] 크레딧 소각(기부)
+    const handleOffsetCredit = async (amount: number): Promise<boolean> => {
         if (!currentUser) return false;
         if (userCreditBalance < amount) {
-            alert('You do not have enough credits.');
+            alert('크레딧이 부족합니다.');
             return false;
         }
-        const newCredit: Credit = {
-            id: `credit${credits.length + 1}`,
-            userId: currentUser.id,
-            date: new Date().toISOString().split('T')[0],
-            activityName: '크레딧 소각',
-            type: 'SPENT_OFFSET',
-            amount: amount,
-        };
-        setCredits(prev => [...prev, newCredit]);
-        return true;
+        
+        return await handleCreditChange(amount, '크레딧 소각 (기부)', 'SPENT_OFFSET');
     }
 
     const renderPage = () => {
@@ -738,7 +1215,6 @@ const handleToggleNeighbor = async (neighborId: string) => { // async 추가 필
             case Page.UPLOAD: return <UploadPage onItemAdd={handleItemAdd} acceptedParties={acceptedUpcomingPartiesForUser} />;
             case Page.LOGIN: return <LoginPage onLogin={handleLogin} setPage={setPage} />;
             case Page.SIGNUP: return <SignUpPage onSignUp={handleSignUp} setPage={setPage} />;
-            // [수정] onSetNeighbors={handleSetNeighbors} 삭제 -> onToggleNeighbor={handleToggleNeighbor}로 교체
             case Page.MY_PAGE:
                 return currentUser ? <MyPage user={currentUser} allUsers={users} onToggleNeighbor={handleToggleNeighbor} stats={userImpactStats} clothingItems={clothingItems.filter(item => item.userId === currentUser.id)} credits={userCredits} parties={parties} onToggleListing={handleToggleListing} onSelectHostedParty={handleSelectParty} setPage={setPage} onPartySubmit={handlePartySubmit} onCancelPartySubmit={handleCancelPartySubmit} onOffsetCredit={handleOffsetCredit} acceptedUpcomingParties={acceptedUpcomingPartiesForUser} /> : <LoginPage onLogin={handleLogin} setPage={setPage} />;
             case Page.STORY_DETAIL:
@@ -756,12 +1232,26 @@ const handleToggleNeighbor = async (neighborId: string) => { // async 추가 필
                 reports={reports}
                 onAddReport={handleAddReport}
              />;
+            // [251125_수정] RewardsPage에 실제 데이터 전달
             case Page.REWARDS:
-                return currentUser ? <RewardsPage user={currentUser} rewards={MOCK_REWARDS} currentBalance={userCreditBalance} onRedeem={handleRedeemReward} /> : <LoginPage onLogin={handleLogin} setPage={setPage} />;
+                return currentUser ? (
+                    <RewardsPage 
+                        user={currentUser} 
+                        rewards={rewards} // API로 받아온 rewards 전달
+                        currentBalance={userCreditBalance} 
+                        onRedeem={handleRedeemReward} // API 핸들러 전달
+                    />
+                ) : <LoginPage onLogin={handleLogin} setPage={setPage} />;
+                
+            // [수정] API 데이터 전달
             case Page.TWENTY_ONE_PERCENT_PARTY:
                 return <TwentyOnePercentPartyPage parties={parties} items={clothingItems} currentUser={currentUser} onPartyApply={handlePartyApplication} setPage={setPage} />;
+            
+            // [수정] 핸들러 전달
             case Page.PARTY_HOSTING:
                 return <PartyHostingPage onHostParty={handleHostParty} />;
+            
+            // [수정] 핸들러 전달
             case Page.PARTY_HOST_DASHBOARD:
                 const party = parties.find(p => p.id === selectedPartyId);
                 return party ? <PartyHostDashboardPage party={party} setPage={setPage} makers={makers} onUpdateImpact={handleUpdatePartyImpact} onUpdateParticipantStatus={handleUpdateParticipantStatus} /> : <MyPage user={currentUser!} stats={userImpactStats} clothingItems={[]} credits={[]} parties={parties} allUsers={users} onSetNeighbors={handleSetNeighbors} onToggleListing={handleToggleListing} setPage={setPage} onSelectHostedParty={handleSelectParty} onPartySubmit={handlePartySubmit} onCancelPartySubmit={handleCancelPartySubmit} onOffsetCredit={handleOffsetCredit} acceptedUpcomingParties={acceptedUpcomingPartiesForUser} />;

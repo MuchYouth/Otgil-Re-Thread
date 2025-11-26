@@ -11,9 +11,7 @@ type MyPageSection = 'DASHBOARD' | 'CLOSET' | 'CREDITS' | 'APPLICATIONS' | 'ACTI
 interface MyPageProps {
   user: User;
   allUsers: User[];
-  // [수정] onSetNeighbors 삭제하고 onToggleNeighbor 추가
-  // onSetNeighbors: (userId: string, neighborIds: string[]) => void; 
-  onToggleNeighbor: (neighborId: string) => void;
+  onToggleNeighbor: (userId: string, neighborIds: string[]) => void;
   stats: ImpactStats;
   clothingItems: ClothingItem[];
   credits: Credit[];
@@ -92,33 +90,17 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
       REJECTED: { text: '참가 거절', color: 'bg-red-100 text-red-800' },
       ATTENDED: { text: '참가 완료', color: 'bg-stone-200 text-stone-700' },
   };
-// 이 함수들은 더 이상 쓰지 않으니 주석처리 11월 22일
-// const handleAddNeighbor = (neighborId: string) => { ... }
-// const handleRemoveNeighbor = (neighborId: string) => { ... }
-  /*const handleAddNeighbor = (neighborId: string) => {
-    const currentNeighbors = user.neighbors || [];
-    if (!currentNeighbors.includes(neighborId)) {
-        onSetNeighbors(user.id, [...currentNeighbors, neighborId]);
-    }
-  };
 
-  const handleRemoveNeighbor = (neighborId: string) => {
-      const currentNeighbors = user.neighbors || [];
-      onSetNeighbors(user.id, currentNeighbors.filter(id => id !== neighborId));
-  };*/
-  
   const searchResults = neighborSearchTerm
     ? allUsers.filter(u => 
         u.id !== user.id &&
-        //!(user.neighbors || []).includes(u.id) 11월 22일 수정전 코드
-        // "내 이웃 목록에 이 사람 ID가 없는 경우"만 검색
-        !user.neighbors.some(n => n.id === u.id) &&
+        !(user.neighbors || []).includes(u.id) &&
         u.nickname.toLowerCase().includes(neighborSearchTerm.toLowerCase())
       )
     : [];
-  // [수정] 현재 이웃 목록은 이미 user.neighbors에 객체로 들어있으므로 필터링 불필요
-  //const currentNeighbors = allUsers.filter(u => (user.neighbors || []).includes(u.id)); 11월 22일 수정
-  const currentNeighbors = user.neighbors; // 바로 사용 가능
+
+  const currentNeighbors = allUsers.filter(u => (user.neighbors || []).includes(u.id));
+  
   const handleBurnCredits = () => {
     const amountToBurn = parseInt(burnAmount, 10);
     if (isNaN(amountToBurn) || amountToBurn <= 0) {
@@ -431,9 +413,7 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
                                 {searchResults.map(foundUser => (
                                     <li key={foundUser.id} className="flex items-center justify-between bg-stone-50 p-3 rounded-md">
                                         <span className="font-medium">{foundUser.nickname}</span>
-                                        {/* [수정] onToggleNeighbor 호출 */}
                                         <button onClick={() => onToggleNeighbor(foundUser.id)} className="text-sm font-bold text-white bg-brand-secondary px-3 py-1 rounded-full hover:bg-brand-secondary-dark">추가</button>
-                                        {/* 11월 22일 수정  <button onClick={() => handleAddNeighbor(foundUser.id)} className="text-sm font-bold text-white bg-brand-secondary px-3 py-1 rounded-full hover:bg-brand-secondary-dark">추가</button>*/}
                                     </li>
                                 ))}
                             </ul>
@@ -450,7 +430,6 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
                             {currentNeighbors.map(neighbor => (
                                 <li key={neighbor.id} className="flex items-center justify-between bg-stone-50 p-3 rounded-md">
                                     <span className="font-medium">{neighbor.nickname}</span>
-                                    {/*11월22일 수정 onToggleNeighbor(neighbor.id)부분 원래는 handleRemoveNeighbor */}
                                     <button onClick={() => onToggleNeighbor(neighbor.id)} className="text-sm font-bold text-white bg-red-500 px-3 py-1 rounded-full hover:bg-red-600">끊기</button>
                                 </li>
                             ))}

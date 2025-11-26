@@ -51,8 +51,7 @@ export enum Page {
   PARTY_HOST_DASHBOARD = 'PARTY_HOST_DASHBOARD',
   MAKERS_HUB = 'MAKERS_HUB',
 }
-
-// [1] 이웃 정보 타입 추가 (11월 22일)
+// [1] 이웃 정보 타입 추가
 export interface NeighborSummary {
     id: string;
     nickname: string;
@@ -64,7 +63,8 @@ export interface User {
   email: string;
   phoneNumber?: string;
   isAdmin?: boolean;
-  neighbors: (string | NeighborSummary)[];// 11월 22일 수정 목데이터(string을 원함)때문에 타입을 객체로만 받을 수가 없음
+  // [수정] 문자열(string)과 객체(NeighborSummary) 둘 다 허용하도록 변경!
+  neighbors: (string | NeighborSummary)[];// Array of user IDs
 }
 
 export interface ImpactStats {
@@ -194,4 +194,3 @@ export interface CategoryDistribution {
     category: ClothingCategory;
     count: number;
 }
-
