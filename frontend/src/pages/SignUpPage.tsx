@@ -72,7 +72,8 @@ const SignUpPage: React.FC<SignUpPageProps> = ({ setPage }) => {
                 nickname: nickname,
                 password: password,
                 phone_number: phoneNumber,
-                // userType이나 adminCode는 백엔드 스키마에 아직 없다면 무시될 수 있음
+                // [수정] is_admin 필드 추가
+                is_admin: userType === 'ADMIN',
             };
 
             // 3. 백엔드 API 호출 (POST /users/signup)
