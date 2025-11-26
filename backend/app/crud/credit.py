@@ -1,9 +1,11 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import List
+from typing import List, Optional
 import datetime
 from typing import Optional
 import uuid
+from fastapi import HTTPException, status
+
 
 from app.models import Credit, User, Credit as CreditModel, CreditTypeEnum as ModelCreditTypeEnum
 from app.schemas import EarnRequest
@@ -41,9 +43,6 @@ def select_old_credits(db: Session, user_id: str) -> List[Credit]:
                 .filter(Credit.user_id == user_id, Credit.amount > 0)\
                 .order_by(Credit.date.asc())\
                 .all()
-
-from fastapi import HTTPException, status
-from typing import Optional
 
 # 필요한 모델 임포트 가정
 # from .models import Credit 
