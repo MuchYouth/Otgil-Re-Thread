@@ -142,7 +142,8 @@ class Msg(BaseModel):
 
 class UserCreate(UserBase):
     password: str 
-
+    # [수정] 관리자 여부 필드 추가 (기본값 False)
+    is_admin: bool = False 
 class UserUpdate(BaseModel):
     nickname: Optional[str] = None
     email: Optional[EmailStr] = None
