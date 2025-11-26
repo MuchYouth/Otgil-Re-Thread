@@ -14,7 +14,7 @@ Admin 스키마: Admin용 통계 스키마(AdminOverallStats 등)는 데이터�
 이 스키마들은 FastAPI와 같은 프레임워크에서 dependencies, request_body, response_model 등으로 활용되어 강력한 타입 검증과 자동 문서화(Swagger/OpenAPI)를 제공합니다.
 '''
 # app/schemas.py
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, computed_field
 import datetime
@@ -420,3 +420,42 @@ class CategoryDistribution(BaseModel):
 # v2 변경: update_forward_refs() -> model_rebuild()
 MakerResponse.model_rebuild()
 UserResponseWithItems.model_rebuild()
+
+class PostBase(BaseModel):
+    # 제목은 반드시 필요하며, 최소 1글자에서 최대 100글자
+    title: str = Field(..., min_length=1, max_length=100, description="게시글 제목")
+    
+    # 내용은 반드시 필요하며, 최소 1글자 이상
+    content: str = Field(..., min_length=1, description="게시글 내용")
+
+    # 이미지 파일은 실제로는 업로드로 받지만,
+    # DB에는 이미지 경로(또는 파일명) 문자열로 저장하므로 스키마에도 문자열 필드로 둠
+    image_url: Optional[str] = Field(
+        None,
+        description="게시글 이미지 경로 (예: /static/posts/xxx.jpg)"
+    )
+
+
+# 2. PostCreate: 게시글 생성 시 서버 내부에서 사용하는 입력 스키마
+class PostCreate(PostBase):
+    # 별도 필드 추가 없음 (title, content, image 그대로 사용)
+    pass
+
+
+# 3. PostUpdate: 기존 게시글 수정 시 사용하는 데이터
+class PostUpdate(BaseModel):
+    # 수정하고 싶은 필드만 보낼 수 있도록 Optional 처리
+    title: Optional[str] = Field(None, description="수정할 게시글 제목")
+    content: Optional[str] = Field(None, description="수정할 게시글 내용")
+    image_url: Optional[str] = Field(None, description="수정할 게시글 이미지 경로")
+
+
+# 4. Post: 클라이언트 응답용 최종 스키마
+class Post(PostBase):
+    post_id: str = Field(..., description="게시글 고유 ID")
+    user_id: str = Field(..., description="작성자 고유 ID")
+    created_at: datetime.datetime = Field(..., description="게시글 생성 시각")
+    updated_at: datetime.datetime = Field(..., description="게시글 최종 수정 시각")
+
+    class Config:
+        from_attributes = True  # SQLAlchemy 모델에서 속성 읽어오기
