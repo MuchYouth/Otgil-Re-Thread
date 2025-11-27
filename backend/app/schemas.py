@@ -152,18 +152,6 @@ class UserResponse(UserBase):
     # [핵심] ID만 주는 게 아니라, ID랑 닉네임을 같이 줍니다! (자동 변환됨)
     neighbors: List[NeighborSummary] = []
 
-    # [수정] neighbors 필드 검증 로직 추가: User 객체 리스트를 ID 리스트로 변환
-    @field_validator('neighbors', mode='before')
-    @classmethod
-    def transform_neighbors(cls, v):
-        if not v:
-            return []
-        # v가 리스트이고 첫 번째 요소가 객체(User 모델)라면 id만 추출
-        if isinstance(v, list) and len(v) > 0 and hasattr(v[0], 'id'):
-            return [user.id for user in v]
-        return v
-    class Config:
-        from_attributes = True
 
     class Config:
         from_attributes = True
