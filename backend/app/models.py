@@ -12,11 +12,11 @@ from app.database import Base
 # --- Enum 정의 ---
 # TypeScript: export type ClothingCategory = 'TSHIRT' | 'JEANS' | 'DRESS' | 'JACKET' | 'ACCESSORY';
 class ClothingCategoryEnum(enum.Enum):
-    TSHIRT = 'TSHIRT'
-    JEANS = 'JEANS'
-    DRESS = 'DRESS'
-    JACKET = 'JACKET'
-    ACCESSORY = 'ACCESSORY'
+    티셔츠 = '티셔츠'
+    바지 = '바지'
+    드레스 = '드레스'
+    자켓 = '자켓'
+    악세서리 = '악세서리'
 
 # TypeScript: partySubmissionStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
 class PartySubmissionStatusEnum(enum.Enum):
