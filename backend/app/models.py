@@ -329,6 +329,14 @@ class Party(Base):
     stories = relationship('Story', back_populates='party')
     participations = relationship('PartyParticipation', back_populates='party', cascade="all, delete-orphan")
 
+# 뉴스레터
+class PerformanceReport(Base):
+    __tablename__ = 'performance_reports'
+    
+    id = Column(String, primary_key=True)
+    title = Column(String, nullable=False)
+    date = Column(Date, nullable=False)
+    excerpt = Column(Text)
 
 # --- Admin 관련 인터페이스 (AdminOverallStats, AdminGroupPerformance 등) ---
 # 이들은 데이터베이스 테이블이 아니라,
