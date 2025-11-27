@@ -336,7 +336,6 @@ class PerformanceReport(Base):
     title = Column(String, nullable=False)
     date = Column(Date, nullable=False)
     excerpt = Column(Text)
-
 # --- Admin 관련 인터페이스 (AdminOverallStats, AdminGroupPerformance 등) ---
 # 이들은 데이터베이스 테이블이 아니라,
 # 위 모델들(User, ClothingItem, Party 등)에서 데이터를 집계(query)하여

@@ -135,7 +135,7 @@ class UserResponse(UserBase):
     is_admin: Optional[bool] = False
     neighbors: Optional[List[str]] = []
 
-    # [수정] neighbors 필드 검증 로직 추가: User 객체 리스트를 ID 리스트로 변환
+    # [중요] 이웃 객체를 ID 문자열 리스트로 변환하는 Validator 추가
     @field_validator('neighbors', mode='before')
     @classmethod
     def transform_neighbors(cls, v):
@@ -288,7 +288,7 @@ class PerformanceReportResponse(PerformanceReportBase):
         from_attributes = True
 
 
-# --- Reward Schemas ---
+# --- Reward Schemas (수정 및 추가) ---
 
 class RewardBase(BaseModel):
     name: str
@@ -300,14 +300,21 @@ class RewardBase(BaseModel):
 class RewardCreate(RewardBase):
     pass
 
+class RewardUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    cost: Optional[int] = None
+    image_url: Optional[str] = None
+    type: Optional[RewardTypeEnum] = None
+
 class RewardResponse(RewardBase):
     id: str
     
     class Config:
-        from_attributes = True
+        from_attributes = True 
 
 
-# --- Maker Schemas ---
+# --- Maker Schemas (수정 및 추가) ---
 
 class MakerBase(BaseModel):
     name: str
@@ -319,15 +326,22 @@ class MakerBase(BaseModel):
 class MakerCreate(MakerBase):
     pass
 
+class MakerUpdate(BaseModel):
+    name: Optional[str] = None
+    specialty: Optional[str] = None
+    location: Optional[str] = None
+    bio: Optional[str] = None
+    image_url: Optional[str] = None
+
 class MakerResponse(MakerBase):
     id: str
     products: List['MakerProductResponse'] = []
 
     class Config:
-        from_attributes = True
+        from_attributes = True 
 
 
-# --- MakerProduct Schemas ---
+# --- MakerProduct Schemas (수정 및 추가) ---
 
 class MakerProductBase(BaseModel):
     name: str
@@ -336,15 +350,20 @@ class MakerProductBase(BaseModel):
     image_url: str
 
 class MakerProductCreate(MakerProductBase):
-    maker_id: str
+    pass # maker_id는 URL 파라미터로 받을 예정
+
+class MakerProductUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[int] = None
+    image_url: Optional[str] = None
 
 class MakerProductResponse(MakerProductBase):
     id: str
     maker_id: str
     
     class Config:
-        from_attributes = True
-
+        from_attributes = True 
 
 # --- Party Schemas ---
 
