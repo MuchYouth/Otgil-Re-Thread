@@ -1,4 +1,4 @@
-export type ClothingCategory = 'T-SHIRT' | 'JEANS' | 'DRESS' | 'JACKET' | 'ACCESSORY';
+export type ClothingCategory = '티셔츠' | '바지' | '드레스' | '자켓'| '악세서리';
 
 export interface GoodbyeTag {
   metWhen: string;
