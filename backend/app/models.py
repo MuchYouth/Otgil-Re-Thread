@@ -95,6 +95,8 @@ class User(Base):
         secondaryjoin=(id == user_neighbors.c.neighbor_id),
         backref='followed_by'
     )
+
+    
     
     # User -> ClothingItem (One-to-Many)
     items = relationship('ClothingItem', back_populates='user')
@@ -110,7 +112,8 @@ class User(Base):
     liked_stories = relationship('Story', secondary=story_likes, back_populates='likers')
     # User -> PartyParticipation (One-to-Many)
     party_participations = relationship('PartyParticipation', back_populates='user')
-
+    posts = relationship('Post', back_populates='user', cascade="all, delete-orphan")
+    #  cascade="all, delete-orphan" : 사용자가 삭제될 때 해당 사용자의 모든 게시글도 함께 삭제
 
 class ClothingItem(Base):
     __tablename__ = 'clothing_items'
@@ -342,3 +345,20 @@ class PerformanceReport(Base):
 # 위 모델들(User, ClothingItem, Party 등)에서 데이터를 집계(query)하여
 # 생성하는 데이터 구조(DTO 또는 View Model)입니다.
 # 따라서 별도의 SQLAlchemy 모델로 정의하지 않습니다.
+
+class Post(Base):
+    __tablename__ = 'posts'
+
+    # post_id는 UUID를 사용하여 String 타입으로 정의
+    post_id = Column(String, primary_key=True, index=True) 
+    # user_id는 User.id(String)를 참조하는 외래 키
+    user_id = Column(String, ForeignKey('users.id', ondelete='CASCADE'), nullable=False) 
+    title = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    image_url = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True )
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    # Relationship
+    user = relationship('User', back_populates='posts')
+    # Post 모델에 대한 댓글(Comment)이 있다면 여기에 추가 가능
