@@ -114,7 +114,6 @@ class User(Base):
     posts = relationship('Post', back_populates='user', cascade="all, delete-orphan")
     #  cascade="all, delete-orphan" : 사용자가 삭제될 때 해당 사용자의 모든 게시글도 함께 삭제
 
-
 class ClothingItem(Base):
     __tablename__ = 'clothing_items'
     
