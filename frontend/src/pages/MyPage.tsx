@@ -192,6 +192,18 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
                                 ) : (
                                     <>
                                         <div className="text-center text-xs font-bold text-purple-600 bg-purple-100 py-1 rounded-full">GOODBYE 태그 아이템</div>
+                                        {/* [▼▼▼ 추가할 코드 시작 ▼▼▼] */}
+                                        <button
+                                            onClick={() => onToggleListing(item.id)}
+                                            className={`w-full font-bold py-2 px-4 rounded-full transition-colors ${
+                                                item.isListedForExchange
+                                                    ? 'bg-stone-500 text-white hover:bg-stone-600'
+                                                    : 'bg-brand-secondary text-white hover:bg-brand-secondary-dark'
+                                            }`}
+                                        >
+                                            {item.isListedForExchange ? '프로필에서 숨기기' : '프로필에 표시하기'}
+                                        </button>
+                                        {/* [▲▲▲ 추가할 코드 끝 ▲▲▲] */}
                                         {item.partySubmissionStatus ? (
                                             <>
                                                 <p className={`text-center text-sm font-semibold p-2 rounded-md ${submissionStatusInfo[item.partySubmissionStatus].color}`}>
