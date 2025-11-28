@@ -68,7 +68,7 @@ const HomePage: React.FC<HomePageProps> = ({ setPage }) => {
                 지속가능한 패션의 흐름에 동참하세요. Ot-gil에서 사용하지 않는 옷을 교환하고, 새로운 스타일을 발견하며 탄소 발자국을 줄여보세요.
                 </p>
                 <button
-                    onClick={() => setPage(Page.BROWSE)}
+                    onClick={() => setPage(Page.TWENTY_ONE_PERCENT_PARTY)}
                     className="group mt-12 inline-flex items-center space-x-3 bg-brand-text text-brand-background font-bold py-4 px-10 rounded-full hover:bg-black transition-all duration-300 shadow-lg"
                 >
                     <span>교환 시작하기</span>

@@ -47,7 +47,6 @@ app.include_router(admin.router, prefix="/admin", tags=["admin"])
 app.include_router(credit.router, prefix="/credits", tags=["credits"])
 app.include_router(reward.router, prefix="/rewards", tags=["rewards"])
 app.include_router(story.router, prefix="/stories", tags=["stories"])
-app.include_router(maker.router, prefix="/makers", tags=["makers"])
 app.include_router(clothing.router, prefix="/clothing", tags=["clothing"])
 app.include_router(post.router)
 
