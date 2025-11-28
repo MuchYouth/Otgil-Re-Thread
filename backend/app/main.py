@@ -1,9 +1,10 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 # 가정: app/api/routers/ 디렉토리 내에 7개의 파일을 생성
-from app.api.routers import user, item, party, community, maker, credit, admin,reward, story, clothing
+from app.api.routers import user, item, party, community, maker, credit, admin,reward, story, clothing, post
 
 # 가정: app/database.py에 Base와 engine이 정의되어 있음
 from app.database import Base, engine
@@ -32,6 +33,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# /static URL로 static 디렉토리 서빙
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # --- 라우터 포함 ---
 # 7개의 도메인 라우터를 prefix와 tag와 함께 포함시킵니다.
 app.include_router(user.router, prefix="/users", tags=["users"])
@@ -43,8 +47,8 @@ app.include_router(admin.router, prefix="/admin", tags=["admin"])
 app.include_router(credit.router, prefix="/credits", tags=["credits"])
 app.include_router(reward.router, prefix="/rewards", tags=["rewards"])
 app.include_router(story.router, prefix="/stories", tags=["stories"])
-app.include_router(maker.router, prefix="/makers", tags=["makers"])
 app.include_router(clothing.router, prefix="/clothing", tags=["clothing"])
+app.include_router(post.router)
 
 @app.get("/", tags=["Root"])
 async def read_root():
