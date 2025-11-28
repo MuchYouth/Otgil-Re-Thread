@@ -190,7 +190,7 @@ const App: React.FC = () => {
     
     // [수정됨] 유저 상태 관리
     const [page, setPage] = useState<Page>(Page.HOME);
-    const [users, setUsers] = useState<User[]>(MOCK_USERS_DATA);
+    const [users, setUsers] = useState<User[]>([]);
     const [currentUser, setCurrentUser] = useState<User | null>(null); // 처음엔 로그인 안 된 상태
 
     const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
@@ -198,50 +198,80 @@ const App: React.FC = () => {
     const [selectedNeighborId, setSelectedNeighborId] = useState<string | null>(null);
 
     // [핵심] 백엔드에서 내 정보 가져오기 함수
+    // [수정] fetchCurrentUser가 User 객체(또는 null)를 반환하도록 변경
     const fetchCurrentUser = useCallback(async () => {
         const token = localStorage.getItem('access_token');
-        if (!token) return;
+        if (!token) return null;
 
         try {
             const response = await fetch("http://localhost:8000/users/me", {
                 method: "GET",
-                headers: {
-                    "Authorization": `Bearer ${token}`, // 토큰을 헤더에 실어 보냄
-                },
+                headers: { "Authorization": `Bearer ${token}` },
             });
 
             if (response.ok) {
                 const userData = await response.json();
-                // [수정] 백엔드(snake_case) -> 프론트엔드(camelCase) 매핑
-                // DB의 is_admin 값을 isAdmin으로, phone_number를 phoneNumber로 변환해야 합니다.
                 const mappedUser: User = {
                     ...userData,
-                    isAdmin: userData.is_admin,        // 매핑 중요!
-                    phoneNumber: userData.phone_number // 매핑 중요!
+                    isAdmin: userData.is_admin,
+                    phoneNumber: userData.phone_number
                 };
-
-                setCurrentUser(mappedUser); // DB에서 가져온 진짜 유저 정보로 설정
+                setCurrentUser(mappedUser);
                 
                 // 유저 정보 로드 성공 시 크레딧 내역도 함께 로드
                 fetchCredits();
 
                 setUsers(prev => {
-                    if (!prev.find(u => u.id === userData.id)) {
-                        return [...prev, userData];
+                    if (!prev.find(u => u.id === mappedUser.id)) {
+                        return [...prev, mappedUser];
                     }
                     return prev;
                 });
+                return mappedUser; // [중요] 가져온 유저 정보를 반환
             } else {
-                // 토큰이 만료되었거나 잘못된 경우
-                console.error("Failed to fetch user");
+                // 401 등 에러 발생 시 로그아웃 처리
+                console.error("Failed to fetch user (invalid token)");
                 localStorage.removeItem('access_token');
                 setCurrentUser(null);
+                setCredits([]);
+                return null;
             }
         } catch (error) {
             console.error("Error fetching user:", error);
+            return null;
         }
     }, []);
 
+    // [수정 2] 전체 유저 목록 가져오기 함수 추가
+    // ---------------------------------------------------------------------------
+    const fetchAllUsers = useCallback(async () => {
+        try {
+            // 백엔드의 GET /users/ 엔드포인트 호출
+            const response = await fetch("http://localhost:8000/users/");
+            if (response.ok) {
+                const data = await response.json();
+                
+                // 받아온 데이터를 프론트엔드 User 타입에 맞게 매핑
+                const realUsers: User[] = data.map((u: any) => ({
+                    id: u.id,
+                    nickname: u.nickname,
+                    email: u.email,
+                    phoneNumber: u.phone_number, // backend: snake_case -> frontend: camelCase
+                    isAdmin: u.is_admin,         // backend: snake_case -> frontend: camelCase
+                    neighbors: u.neighbors || []
+                }));
+
+                // 개발 편의를 위해 MOCK 데이터와 실제 데이터를 합칠 수도 있지만,
+                // 실제 작동을 위해서는 실제 데이터만 쓰는 것이 꼬이지 않고 좋습니다.
+                // 만약 MOCK 데이터도 같이 보고 싶다면: setUsers([...MOCK_USERS_DATA, ...realUsers]);
+                setUsers(realUsers); 
+            } else {
+                console.error("Failed to fetch all users");
+            }
+        } catch (error) {
+            console.error("Error fetching all users:", error);
+        }
+    }, []);
     // [API] 크레딧 내역 조회 API
     const fetchCredits = useCallback(async () => {
         const token = localStorage.getItem('access_token');
@@ -515,16 +545,21 @@ const App: React.FC = () => {
         fetchStories();
         fetchReports();
         fetchClothingItems();
-    }, [fetchCurrentUser, fetchRewards, fetchParties, fetchStories, fetchReports, fetchClothingItems]);
+        fetchAllUsers(); // <--- 여기 추가! 앱 실행 시 전체 유저 목록을 가져옵니다.
+    }, [fetchCurrentUser, fetchRewards, fetchParties, fetchStories, fetchReports, fetchClothingItems, fetchAllUsers]);
 
     // [2] 로그인 성공 핸들러 (LoginPage에서 호출)
     // 이제 email 파라미터에 의존하지 않고, 토큰을 이용해 서버에서 정보를 가져옵니다.
     const handleLogin = async (email: string) => {
-        await fetchCurrentUser(); // 내 정보 갱신
-        setPage(Page.MY_PAGE);    // 페이지 이동
+        const loggedInUser = await fetchCurrentUser(); // 내 정보 갱신 및 가져오기
+        
+        if (loggedInUser && loggedInUser.isAdmin) {
+             setPage(Page.ADMIN); // 관리자면 관리자 페이지로
+        } else {
+             setPage(Page.MY_PAGE); // 아니면 마이페이지로
+        }
         return true;
     };
-
     const handleLogout = () => {
         localStorage.removeItem('access_token'); // 토큰 삭제
         setCurrentUser(null);
@@ -601,7 +636,15 @@ const App: React.FC = () => {
             alert(`'${reward.name}' 교환이 완료되었습니다!`);
         }
     };
-
+    // [API] 리워드 등록 하기 (관리자만)
+    const handleRegisterReward = (rewardData: Omit<Reward, 'id'>) => {
+        const newReward: Reward = {
+            ...rewardData,
+            id: `reward${rewards.length + 1}`,
+        };
+        setRewards(prev => [...prev, newReward]);
+        alert('새로운 바우처가 등록되었습니다.');
+    };
     // [수정] 아이템 등록 시 크레딧 적립
     const handleItemAdd = async (itemInfo: any, options: any) => {
         if (!currentUser) {
@@ -1127,7 +1170,6 @@ const App: React.FC = () => {
         }
     };
 
-
     // 환경 임팩트 계산
     const userImpactStats = useMemo<ImpactStats>(() => {
         if (!currentUser) return { itemsExchanged: 0, waterSaved: 0, co2Reduced: 0 };
@@ -1169,7 +1211,15 @@ const App: React.FC = () => {
             p.participants.some(participant => participant.userId === currentUser.id && participant.status === 'ACCEPTED')
         );
     }, [parties, currentUser]);
-
+    // [수정] 메이커 등록 하기 (관리자만)
+    const handleRegisterMaker = (makerData: Omit<Maker, 'id'>) => {
+        const newMaker: Maker = {
+            ...makerData,
+            id: `maker${makers.length + 1}`,
+        };
+        setMakers(prev => [...prev, newMaker]);
+        alert('새로운 메이커가 등록되었습니다.');
+    };
     // [수정] 메이커 상품 구매 시 크레딧 차감
     const handlePurchaseMakerProduct = async (product: MakerProduct) => {
         if (!currentUser) return;
@@ -1199,7 +1249,7 @@ const App: React.FC = () => {
         switch (page) {
             case Page.HOME: return <HomePage setPage={setPage} />;
             case Page.BROWSE: return <BrowsePage items={clothingItems} parties={parties} />;
-            case Page.NEIGHBORS_CLOSET: return currentUser ? <NeighborsClosetPage currentUser={currentUser} allUsers={users} setPage={setPage} onSelectNeighbor={handleSelectNeighbor} /> : <LoginPage onLogin={handleLogin} setPage={setPage} />;
+            case Page.NEIGHBORS_CLOSET: return currentUser ? <NeighborsClosetPage currentUser={currentUser} allUsers={users} clothingItems={clothingItems} parties={parties} setPage={setPage} onSelectNeighbor={handleSelectNeighbor} /> : <LoginPage onLogin={handleLogin} setPage={setPage} />;
             case Page.NEIGHBOR_PROFILE:
                 const neighbor = users.find(u => u.id === selectedNeighborId);
                 const neighborItems = clothingItems.filter(item => item.userId === selectedNeighborId && item.isListedForExchange);
@@ -1230,17 +1280,17 @@ const App: React.FC = () => {
                 reports={reports}
                 onAddReport={handleAddReport}
              />;
-            // [251125_수정] RewardsPage에 실제 데이터 전달
+            // [수정] RewardsPage에 실제 데이터 전달
+        
             case Page.REWARDS:
-                return currentUser ? (
-                    <RewardsPage 
-                        user={currentUser} 
-                        rewards={rewards} // API로 받아온 rewards 전달
-                        currentBalance={userCreditBalance} 
-                        onRedeem={handleRedeemReward} // API 핸들러 전달
-                    />
-                ) : <LoginPage onLogin={handleLogin} setPage={setPage} />;
-                
+                return currentUser ? <RewardsPage 
+                    user={currentUser} 
+                    rewards={rewards} 
+                    currentBalance={userCreditBalance} 
+                    onRedeem={handleRedeemReward} 
+                    onRegisterReward={handleRegisterReward}
+                /> : <LoginPage onLogin={handleLogin} setPage={setPage} />;
+
             // [수정] API 데이터 전달
             case Page.TWENTY_ONE_PERCENT_PARTY:
                 return <TwentyOnePercentPartyPage parties={parties} items={clothingItems} currentUser={currentUser} onPartyApply={handlePartyApplication} setPage={setPage} />;
@@ -1253,8 +1303,16 @@ const App: React.FC = () => {
             case Page.PARTY_HOST_DASHBOARD:
                 const party = parties.find(p => p.id === selectedPartyId);
                 return party ? <PartyHostDashboardPage party={party} setPage={setPage} makers={makers} onUpdateImpact={handleUpdatePartyImpact} onUpdateParticipantStatus={handleUpdateParticipantStatus} /> : <MyPage user={currentUser!} stats={userImpactStats} clothingItems={[]} credits={[]} parties={parties} allUsers={users} onSetNeighbors={handleSetNeighbors} onToggleListing={handleToggleListing} setPage={setPage} onSelectHostedParty={handleSelectParty} onPartySubmit={handlePartySubmit} onCancelPartySubmit={handleCancelPartySubmit} onOffsetCredit={handleOffsetCredit} acceptedUpcomingParties={acceptedUpcomingPartiesForUser} />;
-            case Page.MAKERS_HUB:
-                return currentUser ? <MakersHubPage makers={makers} products={makerProducts} userCreditBalance={userCreditBalance} onPurchase={handlePurchaseMakerProduct} /> : <LoginPage onLogin={handleLogin} setPage={setPage} />;
+            // [수정] 메이커 등록 핸들러 전달
+                case Page.MAKERS_HUB:
+                return currentUser ? <MakersHubPage 
+                    makers={makers} 
+                    products={makerProducts} 
+                    userCreditBalance={userCreditBalance} 
+                    onPurchase={handlePurchaseMakerProduct} 
+                    currentUser={currentUser} 
+                    onRegisterMaker={handleRegisterMaker} 
+                /> : <LoginPage onLogin={handleLogin} setPage={setPage} />;
             case Page.ADMIN:
                 return currentUser?.isAdmin ? <AdminPage 
                     parties={parties}
