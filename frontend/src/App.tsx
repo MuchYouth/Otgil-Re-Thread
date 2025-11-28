@@ -928,28 +928,48 @@ const App: React.FC = () => {
         alert('파티가 삭제되었습니다.');
     };
     
-    // [API] 파티 체크인 (호스트용 QR 스캔)
-    const handleUpdateParticipantStatus = async (partyId: string, userId: string, newStatus: PartyParticipantStatus) => {
-        if (newStatus !== 'ATTENDED') return; // 현재 API는 체크인(ATTENDED)만 구현됨
+    // frontend/src/App.tsx 내부
 
+   // [수정] 참가자 상태 변경 (안전한 코드 적용)
+    const handleUpdateParticipantStatus = async (partyId: string, userId: string, newStatus: PartyParticipantStatus) => {
         const token = localStorage.getItem('access_token');
         if (!token) return;
 
         try {
-            // QR 체크인 API 호출 (Body에 user_id를 실어 보내거나 Query param 사용. 앞서 만든 API는 Query param user_id 사용)
-            const response = await fetch(`http://localhost:8000/parties/${partyId}/check-in?user_id=${userId}`, {
-                method: "POST",
-                headers: { "Authorization": `Bearer ${token}` }
-            });
+            // 1. response 변수 초기화
+            let response: Response | null = null;
+
+            // Case 1: 현장 체크인 (QR 스캔 -> ATTENDED)
+            if (newStatus === 'ATTENDED') {
+                response = await fetch(`http://localhost:8000/parties/${partyId}/check-in?user_id=${userId}`, {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+            }
+            // Case 2: 관리자 승인/거절 (ACCEPTED / REJECTED)
+            else {
+                response = await fetch(`http://localhost:8000/admin/parties/${partyId}/participants/${userId}/status`, {
+                    method: "PATCH",
+                    headers: { 
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ status: newStatus })
+                });
+            }
+
+            // response가 없는 경우 방어
+            if (!response) throw new Error("서버 응답이 없습니다.");
 
             if (response.ok) {
-                // 성공 시 로컬 상태도 업데이트하여 즉각 반영
+                // 성공 시 로컬 상태(화면) 즉시 업데이트
                 setParties(prevParties => {
                     return prevParties.map(party => {
                         if (party.id === partyId) {
                             return {
                                 ...party,
-                                participants: party.participants.map(p => 
+                                // [중요 수정] participants가 없거나 undefined일 경우 빈 배열([])로 처리하여 에러 방지
+                                participants: (party.participants || []).map(p => 
                                     p.userId === userId ? { ...p, status: newStatus } : p
                                 ),
                             };
@@ -957,13 +977,16 @@ const App: React.FC = () => {
                         return party;
                     });
                 });
+                
+                alert("상태가 성공적으로 변경되었습니다.");
             } else {
                 const err = await response.json();
-                alert(`체크인 실패: ${err.detail}`);
+                alert(`처리 실패: ${err.detail || '알 수 없는 오류'}`);
             }
         } catch (error) {
-            console.error("Error checking in:", error);
-            alert("체크인 중 통신 오류가 발생했습니다.");
+            console.error("Error updating participant status:", error);
+            // 에러 내용을 구체적으로 표시하도록 수정
+            alert(`오류 발생: ${error instanceof Error ? error.message : "알 수 없는 오류"}`);
         }
     };
 
