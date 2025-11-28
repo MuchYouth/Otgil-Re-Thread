@@ -57,6 +57,3 @@ logs/
 # 로컬 테스트용 SQLite DB 파일 (필요시)
 *.sqlite3
 *.db
-#--sqlite
-migrations/
-alembic.ini
