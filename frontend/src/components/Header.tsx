@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Page, User } from '../types';
 
@@ -69,14 +70,25 @@ const Header: React.FC<HeaderProps> = ({ currentPage, setPage, user, onLogout })
                   {user ? (
                       <>
                           <span className="hidden sm:inline text-brand-text/80 text-sm">환영합니다, {user.nickname}님!</span>
-                          <button
-                            onClick={() => setPage(Page.MY_PAGE)}
-                            aria-label="마이페이지"
-                            className="ml-2 sm:ml-4 flex items-center justify-center w-10 h-10 rounded-full hover:bg-stone-100 sm:w-auto sm:h-auto sm:rounded-none sm:bg-transparent sm:hover:bg-transparent text-sm font-medium text-brand-text/70 hover:text-brand-text transition-colors"
-                          >
-                            <i className="fa-solid fa-user-circle text-xl sm:hidden" aria-hidden="true"></i>
-                            <span className="hidden sm:inline">마이페이지</span>
-                          </button>
+                          {user.isAdmin ? (
+                              <button
+                                onClick={() => setPage(Page.ADMIN)}
+                                aria-label="관리자 대시보드"
+                                className="ml-2 sm:ml-4 flex items-center justify-center w-10 h-10 rounded-full hover:bg-stone-100 sm:w-auto sm:h-auto sm:rounded-none sm:bg-transparent sm:hover:bg-transparent text-sm font-medium text-brand-primary hover:text-brand-primary-dark transition-colors"
+                              >
+                                <i className="fa-solid fa-user-shield text-xl sm:hidden" aria-hidden="true"></i>
+                                <span className="hidden sm:inline">관리자 대시보드</span>
+                              </button>
+                          ) : (
+                              <button
+                                onClick={() => setPage(Page.MY_PAGE)}
+                                aria-label="마이페이지"
+                                className="ml-2 sm:ml-4 flex items-center justify-center w-10 h-10 rounded-full hover:bg-stone-100 sm:w-auto sm:h-auto sm:rounded-none sm:bg-transparent sm:hover:bg-transparent text-sm font-medium text-brand-text/70 hover:text-brand-text transition-colors"
+                              >
+                                <i className="fa-solid fa-user-circle text-xl sm:hidden" aria-hidden="true"></i>
+                                <span className="hidden sm:inline">마이페이지</span>
+                              </button>
+                          )}
                           <button
                             onClick={onLogout}
                             aria-label="로그아웃"

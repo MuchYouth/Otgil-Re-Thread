@@ -2,13 +2,39 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
 import datetime
-from typing import Optional
 import uuid
 from fastapi import HTTPException, status
 
-
 from app.models import Credit, User, Credit as CreditModel, CreditTypeEnum as ModelCreditTypeEnum
 from app.schemas import EarnRequest
+
+def earn_credit_to_user(db: Session, req: EarnRequest) -> CreditModel:
+
+    target = db.query(User).filter(User.id == req.user_id).first()
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target user not found")
+
+    # 크레딧 타입 처리: schemas에서 오는 Enum을 모델 Enum으로 변환
+    try:
+        if req.type is None:
+            credit_type = ModelCreditTypeEnum.EARNED_EVENT
+        else:
+            # req.type is a schema enum (CreditTypeEnum) -> use its value
+            credit_type = ModelCreditTypeEnum(req.type.value)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid credit type")
+    
+    # id는 128비트의 무작위 고유값
+    credit_obj = CreditModel(
+        id=str(uuid.uuid4()),
+        date=datetime.datetime.utcnow(),
+        activity_name=req.activity_name,
+        type=credit_type,
+        amount=req.amount,
+        user_id=req.user_id,
+    )
+    
+    return credit_obj
 
 def get_user_credit_balance(db: Session, user_id: str) -> int:
     """특정 사용자의 크레딧 총 잔액을 계산합니다."""
@@ -26,6 +52,7 @@ def get_user_credit_balance(db: Session, user_id: str) -> int:
     # 잔액이 None인 경우 0 반환
     return total_balance or 0
 
+
 def get_credits_by_user(db: Session, user_id: str) -> List[Credit]:
     """특정 사용자의 모든 크레딧 변동 내역을 조회합니다 (최신순)."""
     # 크래딧 소유 user id가 현재 유저 id와 일치하는 것만 필터링 후 내림차순 정렬
@@ -33,19 +60,6 @@ def get_credits_by_user(db: Session, user_id: str) -> List[Credit]:
         .filter(Credit.user_id == user_id)\
         .order_by(Credit.date.desc())\
         .all()
-
-def select_old_credits(db: Session, user_id: str) -> List[Credit]:
-    """
-    FIFO 방식으로 차감할 크레딧을 선택합니다.
-    가장 오래된 'EARN' 타입의 크레딧부터 필요한 금액만큼 조회합니다.
-    """
-    return db.query(Credit)\
-                .filter(Credit.user_id == user_id, Credit.amount > 0)\
-                .order_by(Credit.date.asc())\
-                .all()
-
-# 필요한 모델 임포트 가정
-# from .models import Credit 
 
 def delete_credit_record(db: Session, credit_id: str, user_id: str ) -> bool:
     """
@@ -84,93 +98,3 @@ def delete_credit_record(db: Session, credit_id: str, user_id: str ) -> bool:
         raise RuntimeError(f"크레딧 삭제 중 DB 오류 발생: {e}")
 
     return True
-
-# 오래된 크레딧부터 요구 금액만큼 차감하는 함수
-def get_fifo_consumption_plan(db: Session, user_id: str, required_amount: int) -> List[Credit]:
-    """
-    FIFO 방식으로 차감할 크레딧을 선택하고, 각 크레딧에서 사용될 금액을 포함한
-    소모 계획 리스트를 반환합니다.
-
-    Args:
-        db: SQLAlchemy 데이터베이스 세션
-        user_id: 현재 사용자의 ID
-        required_amount: 굿즈 교환 등에 필요한 총 크레딧 금액
-
-    Returns:
-        [(Credit 객체, 사용될 금액), ...] 형태의 리스트 (ConsumptionPlan)
-    """
-    
-    if required_amount <= 0:
-        return []
-
-    # 1. 획득 크레딧을 FIFO 순서(오래된 순서)로 조회
-    earn_credits = select_old_credits(db, user_id)
-
-    # 2. 잔액 확인 (선행 검증)
-    current_total_earn = sum(c.amount for c in earn_credits)
-    
-    # ⚠️ 이 로직은 사용(USE) 기록을 고려하지 않은 순수 획득액만 합산합니다.
-    #    실제 서비스에서는 전체 순 잔액을 계산하여 비교해야 합니다.
-    if current_total_earn < required_amount:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail=f"크레딧 잔액 부족. {required_amount}이 필요하지만, 가용 획득액은 {current_total_earn}입니다."
-        )
-
-    # 3. FIFO 소모 계획 수립
-    remaining_cost = required_amount
-    
-    for credit in earn_credits:
-        if remaining_cost <= 0:
-            break
-
-        # 1. 현재 크래딧을 써도 필요량을 다 채우지 못하는 경우
-        #   크레딧 전액 사용
-        # 2. 필요량을 다 채우는 경우
-        #   필요한 만큼만 사용
-
-        # 남은 비용 업데이트
-        
-        if(remaining_cost <= credit.amount):
-            amount_to_use = remaining_cost
-            # 크래딧 객체가 보유한 amount 필드가 실제 사용될 금액을 반영하도록 수정
-            credit.amount -= amount_to_use
-            
-        else:
-            # 이때 크래딧을 다 사용하면 amount 0으로 설정
-            amount_to_use = credit.amount
-            credit.amount = 0
-
-        remaining_cost -= amount_to_use
-        
-        db.add(credit)
-    db.commit()
-    return earn_credits
-
-def earn_credit_to_user(db: Session, req: EarnRequest) -> CreditModel:
-
-    target = db.query(User).filter(User.id == req.user_id).first()
-    if not target:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target user not found")
-
-    # 크레딧 타입 처리: schemas에서 오는 Enum을 모델 Enum으로 변환
-    try:
-        if req.type is None:
-            credit_type = ModelCreditTypeEnum.EARNED_EVENT
-        else:
-            # req.type is a schema enum (CreditTypeEnum) -> use its value
-            credit_type = ModelCreditTypeEnum(req.type.value)
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid credit type")
-    
-    # id는 128비트의 무작위 고유값
-    credit_obj = CreditModel(
-        id=str(uuid.uuid4()),
-        date=datetime.datetime.utcnow(),
-        activity_name=req.activity_name,
-        type=credit_type,
-        amount=req.amount,
-        user_id=req.user_id,
-    )
-
-    return credit_obj

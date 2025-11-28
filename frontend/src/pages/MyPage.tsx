@@ -11,7 +11,8 @@ type MyPageSection = 'DASHBOARD' | 'CLOSET' | 'CREDITS' | 'APPLICATIONS' | 'ACTI
 interface MyPageProps {
   user: User;
   allUsers: User[];
-  onSetNeighbors: (userId: string, neighborIds: string[]) => void;
+  // [수정 1] 함수 시그니처를 App.tsx의 핸들러와 일치시킵니다 (인자 1개)
+  onToggleNeighbor: (neighborId: string) => void;
   stats: ImpactStats;
   clothingItems: ClothingItem[];
   credits: Credit[];
@@ -94,13 +95,17 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
   const searchResults = neighborSearchTerm
     ? allUsers.filter(u => 
         u.id !== user.id &&
-        !(user.neighbors || []).includes(u.id) &&
+        // [수정 2] 이웃 여부 확인 로직 강화 (타입 안전성 확보)
+        !(user.neighbors || []).some(n => (typeof n === 'string' ? n : n.id) === u.id) &&
         u.nickname.toLowerCase().includes(neighborSearchTerm.toLowerCase())
       )
     : [];
 
-  const currentNeighbors = allUsers.filter(u => (user.neighbors || []).includes(u.id));
-  
+  // [수정 3] 현재 이웃 목록 필터링 로직 강화
+  // user.neighbors 배열에 있는 ID(혹은 객체)와 일치하는 유저를 allUsers에서 찾습니다.
+  const currentNeighbors = allUsers.filter(u => 
+    (user.neighbors || []).some(n => (typeof n === 'string' ? n : n.id) === u.id)
+  );
   const handleBurnCredits = () => {
     const amountToBurn = parseInt(burnAmount, 10);
     if (isNaN(amountToBurn) || amountToBurn <= 0) {

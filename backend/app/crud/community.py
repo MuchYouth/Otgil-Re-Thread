@@ -1,10 +1,10 @@
 import uuid
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import desc
 from typing import List, Optional
+from sqlalchemy import desc
 
-from app.models import Story, Tag, User, PerformanceReport, Comment
-from app.schemas import StoryCreate, StoryUpdate, PerformanceReportCreate, CommentCreate
+from app.models import Story, Tag, User, PerformanceReport
+from app.schemas import StoryCreate, StoryUpdate, PerformanceReportCreate
 
 # --- Helper Functions ---
 def get_or_create_tag(db: Session, name: str) -> Tag:
@@ -33,7 +33,6 @@ def get_story(db: Session, story_id: str) -> Story | None:
     ).filter(Story.id == story_id).first()
 
 def create_story(db: Session, story: StoryCreate, user_id: str, author_nickname: str) -> Story:
-    # 태그는 별도로 처리하기 위해 model_dump에서 제외
     story_data = story.model_dump(exclude={"tags"})
     
     db_story = Story(
@@ -43,7 +42,6 @@ def create_story(db: Session, story: StoryCreate, user_id: str, author_nickname:
         author=author_nickname
     )
     
-    # 태그 연결
     if story.tags:
         for tag_name in story.tags:
             db_tag = get_or_create_tag(db, tag_name)
@@ -60,7 +58,7 @@ def update_story(db: Session, db_story: Story, story_in: StoryUpdate) -> Story:
     for key, value in update_data.items():
         setattr(db_story, key, value)
         
-    # 태그 업데이트 (전체 교체 방식)
+    # 태그 업데이트 로직 (기존 태그 교체)
     if story_in.tags is not None:
         db_story.tags = [] # 기존 태그 연결 해제
         for tag_name in story_in.tags:
@@ -98,22 +96,9 @@ def toggle_like(db: Session, story_id: str, user_id: str) -> Story | None:
     db.refresh(story)
     return story
 
-# --- Comment CRUD ---
-def create_comment(db: Session, comment: CommentCreate, story_id: str, user_id: str, author_nickname: str) -> Comment:
-    db_comment = Comment(
-        id=str(uuid.uuid4()),
-        text=comment.text,
-        story_id=story_id,
-        user_id=user_id,
-        author_nickname=author_nickname
-    )
-    db.add(db_comment)
-    db.commit()
-    db.refresh(db_comment)
-    return db_comment
-
-# --- [중요] Report (Newsletter) CRUD 추가됨 ---
+# --- Report (Newsletter) CRUD ---
 def get_reports(db: Session, skip: int = 0, limit: int = 20) -> List[PerformanceReport]:
+    # PerformanceReport 모델이 있다고 가정합니다.
     return db.query(PerformanceReport)\
         .order_by(PerformanceReport.date.desc())\
         .offset(skip)\

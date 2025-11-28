@@ -1,5 +1,6 @@
+
 import React, { useState, useMemo } from 'react';
-import { Maker, MakerProduct } from '../types';
+import { Maker, MakerProduct, User } from '../types';
 import MakerCard from '../components/MakerCard';
 
 interface MakersHubPageProps {
@@ -7,6 +8,8 @@ interface MakersHubPageProps {
   products: MakerProduct[];
   userCreditBalance: number;
   onPurchase: (product: MakerProduct) => void;
+  currentUser: User | null;
+  onRegisterMaker: (maker: Omit<Maker, 'id'>) => void;
 }
 
 const MakerDetailModal: React.FC<{
@@ -64,9 +67,74 @@ const MakerDetailModal: React.FC<{
     )
 }
 
+const MakerRegistrationModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onSubmit: (maker: Omit<Maker, 'id'>) => void;
+}> = ({ isOpen, onClose, onSubmit }) => {
+    const [formData, setFormData] = useState({
+        name: '',
+        specialty: '',
+        location: '',
+        bio: '',
+        imageUrl: '',
+    });
 
-const MakersHubPage: React.FC<MakersHubPageProps> = ({ makers, products, userCreditBalance, onPurchase }) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        onSubmit(formData);
+        onClose();
+        setFormData({ name: '', specialty: '', location: '', bio: '', imageUrl: '' });
+    };
+
+    if (!isOpen) return null;
+
+    const standardInputClasses = "mt-1 block w-full px-3 py-2 bg-white border border-stone-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-primary focus:border-brand-primary";
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
+            <div className="bg-white rounded-xl shadow-2xl p-6 md:p-8 w-full max-w-lg relative">
+                 <button onClick={onClose} className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 text-2xl">&times;</button>
+                 <h3 className="text-2xl font-bold text-brand-text mb-6">메이커 등록 (관리자)</h3>
+                 <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label htmlFor="name" className="block text-sm font-medium text-brand-text">메이커 이름</label>
+                        <input type="text" name="name" id="name" value={formData.name} onChange={handleChange} className={standardInputClasses} required />
+                    </div>
+                    <div>
+                        <label htmlFor="specialty" className="block text-sm font-medium text-brand-text">전문 분야</label>
+                        <input type="text" name="specialty" id="specialty" value={formData.specialty} onChange={handleChange} className={standardInputClasses} placeholder="예: 의류 수선, 가방 제작" required />
+                    </div>
+                    <div>
+                        <label htmlFor="location" className="block text-sm font-medium text-brand-text">위치</label>
+                        <input type="text" name="location" id="location" value={formData.location} onChange={handleChange} className={standardInputClasses} required />
+                    </div>
+                    <div>
+                        <label htmlFor="imageUrl" className="block text-sm font-medium text-brand-text">프로필 이미지 URL</label>
+                        <input type="url" name="imageUrl" id="imageUrl" value={formData.imageUrl} onChange={handleChange} className={standardInputClasses} required />
+                    </div>
+                    <div>
+                        <label htmlFor="bio" className="block text-sm font-medium text-brand-text">소개</label>
+                        <textarea name="bio" id="bio" value={formData.bio} onChange={handleChange} rows={3} className={standardInputClasses} required></textarea>
+                    </div>
+                    <button type="submit" className="w-full bg-brand-primary text-white font-bold py-3 px-4 rounded-full hover:bg-brand-primary-dark transition-colors mt-4">
+                        등록하기
+                    </button>
+                 </form>
+            </div>
+        </div>
+    );
+};
+
+
+const MakersHubPage: React.FC<MakersHubPageProps> = ({ makers, products, userCreditBalance, onPurchase, currentUser, onRegisterMaker }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
     const [selectedMaker, setSelectedMaker] = useState<Maker | null>(null);
 
     const handleSelectMaker = (maker: Maker) => {
@@ -94,12 +162,27 @@ const MakersHubPage: React.FC<MakersHubPageProps> = ({ makers, products, userCre
             onPurchase={onPurchase}
             onClose={closeModal}
         />
+        <MakerRegistrationModal 
+            isOpen={isRegisterModalOpen} 
+            onClose={() => setIsRegisterModalOpen(false)} 
+            onSubmit={onRegisterMaker} 
+        />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-fade-in">
         <div className="text-center mb-12">
             <h2 className="text-4xl font-black tracking-tight text-brand-text sm:text-5xl">메이커스 허브</h2>
             <p className="mt-4 max-w-2xl mx-auto text-lg text-brand-text/70">
             지역의 장인들과 함께 당신의 옷에 새로운 가치를 더하세요. 옷길은 재능 있는 메이커와 의식 있는 소비자를 연결합니다.
             </p>
+            {currentUser?.isAdmin && (
+                <div className="mt-8">
+                    <button 
+                        onClick={() => setIsRegisterModalOpen(true)}
+                        className="bg-brand-secondary text-white font-bold py-2 px-6 rounded-full hover:bg-brand-secondary-dark transition-colors shadow-md"
+                    >
+                        <i className="fa-solid fa-plus mr-2"></i>메이커 등록하기
+                    </button>
+                </div>
+            )}
         </div>
 
         {makers.length > 0 ? (
