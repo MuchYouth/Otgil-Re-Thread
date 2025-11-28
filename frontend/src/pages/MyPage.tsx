@@ -82,7 +82,10 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
     return credit.type.startsWith('EARNED') ? sum + credit.amount : sum - credit.amount;
   }, 0);
   
-  const userAppliedParties = parties.filter(p => p.participants.some(participant => participant.userId === user.id && p.hostId !== user.id));
+  // [수정 후] 더 명확하게 필터링 (호스트 ID 체크는 유지하되, 내 ID가 participants 배열에 있는지 확인)
+  const userAppliedParties = parties.filter(party => 
+      party.participants.some(participant => participant.userId === user.id)
+  );
   const hostedParties = parties.filter(p => p.hostId === user.id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const statusInfo: Record<PartyParticipantStatus, { text: string; color: string; }> = {
@@ -95,17 +98,13 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
   const searchResults = neighborSearchTerm
     ? allUsers.filter(u => 
         u.id !== user.id &&
-        // [수정 2] 이웃 여부 확인 로직 강화 (타입 안전성 확보)
-        !(user.neighbors || []).some(n => (typeof n === 'string' ? n : n.id) === u.id) &&
+        !(user.neighbors || []).includes(u.id) &&
         u.nickname.toLowerCase().includes(neighborSearchTerm.toLowerCase())
       )
     : [];
 
-  // [수정 3] 현재 이웃 목록 필터링 로직 강화
-  // user.neighbors 배열에 있는 ID(혹은 객체)와 일치하는 유저를 allUsers에서 찾습니다.
-  const currentNeighbors = allUsers.filter(u => 
-    (user.neighbors || []).some(n => (typeof n === 'string' ? n : n.id) === u.id)
-  );
+  const currentNeighbors = allUsers.filter(u => (user.neighbors || []).includes(u.id));
+  
   const handleBurnCredits = () => {
     const amountToBurn = parseInt(burnAmount, 10);
     if (isNaN(amountToBurn) || amountToBurn <= 0) {
