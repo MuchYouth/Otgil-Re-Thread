@@ -1,22 +1,44 @@
 import React from 'react';
-import { User, Page } from '../types';
+import { User, Page, ClothingItem, Party } from '../types';
 
 interface NeighborProfileCardProps {
     neighbor: User;
+    clothingCount: number;
+    partyCount: number;
     onClick: () => void;
 }
 
-const NeighborProfileCard: React.FC<NeighborProfileCardProps> = ({ neighbor, onClick }) => {
+const NeighborProfileCard: React.FC<NeighborProfileCardProps> = ({ neighbor, clothingCount, partyCount, onClick }) => {
     return (
         <button 
             onClick={onClick} 
-            className="bg-white p-4 sm:p-6 rounded-xl shadow-lg text-center hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300"
+            className="bg-white rounded-2xl shadow-lg hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 overflow-hidden group w-full flex flex-col h-full"
         >
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-4 border-2 border-stone-200">
-                <i className="fa-solid fa-user text-3xl sm:text-4xl text-stone-400"></i>
+            <div className="p-6 flex flex-col items-center flex-grow w-full">
+                <div className="w-24 h-24 rounded-full bg-stone-100 flex items-center justify-center mb-4 border-4 border-white shadow-md group-hover:scale-105 transition-transform duration-300">
+                    <i className="fa-solid fa-user text-4xl text-stone-400"></i>
+                </div>
+                <h3 className="font-bold text-xl text-brand-text truncate w-full">{neighbor.nickname}</h3>
+                <p className="text-sm text-brand-text/60 mb-6">{neighbor.neighbors?.length || 0}명의 이웃과 함께함</p>
+                
+                <div className="grid grid-cols-2 gap-3 w-full mt-auto">
+                    <div className="bg-brand-primary/5 p-3 rounded-xl flex flex-col items-center justify-center">
+                        <i className="fa-solid fa-shirt text-brand-primary text-xl mb-1"></i>
+                        <span className="font-bold text-brand-text text-lg">{clothingCount}</span>
+                        <span className="text-xs text-brand-text/60">옷장 아이템</span>
+                    </div>
+                    <div className="bg-brand-secondary/5 p-3 rounded-xl flex flex-col items-center justify-center">
+                        <i className="fa-solid fa-glass-cheers text-brand-secondary text-xl mb-1"></i>
+                        <span className="font-bold text-brand-text text-lg">{partyCount}</span>
+                        <span className="text-xs text-brand-text/60">파티 참여</span>
+                    </div>
+                </div>
             </div>
-            <h3 className="font-bold text-lg text-brand-text truncate">{neighbor.nickname}</h3>
-            <p className="text-sm text-brand-text/60">{neighbor.neighbors?.length || 0} 이웃</p>
+            <div className="bg-stone-50 p-3 text-center border-t border-stone-100 w-full">
+                <span className="text-sm font-semibold text-brand-text/70 group-hover:text-brand-primary transition-colors">
+                    옷장 구경하기 <i className="fa-solid fa-arrow-right ml-1"></i>
+                </span>
+            </div>
         </button>
     );
 };
@@ -24,17 +46,27 @@ const NeighborProfileCard: React.FC<NeighborProfileCardProps> = ({ neighbor, onC
 interface NeighborsClosetPageProps {
   currentUser: User;
   allUsers: User[];
+  clothingItems: ClothingItem[];
+  parties: Party[];
   setPage: (page: Page) => void;
   onSelectNeighbor: (neighborId: string) => void;
 }
 
-const NeighborsClosetPage: React.FC<NeighborsClosetPageProps> = ({ currentUser, allUsers, setPage, onSelectNeighbor }) => {
+const NeighborsClosetPage: React.FC<NeighborsClosetPageProps> = ({ currentUser, allUsers, clothingItems, parties, setPage, onSelectNeighbor }) => {
     const neighborIds = currentUser.neighbors || [];
     const neighbors = allUsers.filter(u => neighborIds.includes(u.id));
 
     const handleNeighborClick = (neighborId: string) => {
         onSelectNeighbor(neighborId);
         setPage(Page.NEIGHBOR_PROFILE);
+    };
+
+    const getNeighborStats = (userId: string) => {
+        const itemCount = clothingItems.filter(item => item.userId === userId).length;
+        const partyCount = parties.filter(party => 
+            party.participants.some(p => p.userId === userId && (p.status === 'ACCEPTED' || p.status === 'ATTENDED'))
+        ).length;
+        return { itemCount, partyCount };
     };
 
     return (
@@ -47,10 +79,19 @@ const NeighborsClosetPage: React.FC<NeighborsClosetPageProps> = ({ currentUser, 
             </div>
 
             {neighbors.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-                    {neighbors.map(neighbor => (
-                       <NeighborProfileCard key={neighbor.id} neighbor={neighbor} onClick={() => handleNeighborClick(neighbor.id)} />
-                    ))}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+                    {neighbors.map(neighbor => {
+                        const stats = getNeighborStats(neighbor.id);
+                        return (
+                            <NeighborProfileCard 
+                                key={neighbor.id} 
+                                neighbor={neighbor} 
+                                clothingCount={stats.itemCount}
+                                partyCount={stats.partyCount}
+                                onClick={() => handleNeighborClick(neighbor.id)} 
+                            />
+                        );
+                    })}
                 </div>
             ) : (
                 <div className="text-center py-16 bg-white/50 rounded-lg">

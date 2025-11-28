@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, Field
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, computed_field
 import datetime
@@ -135,7 +135,7 @@ class UserResponse(UserBase):
     is_admin: Optional[bool] = False
     neighbors: Optional[List[str]] = []
 
-    # [수정] neighbors 필드 검증 로직 추가: User 객체 리스트를 ID 리스트로 변환
+    # [중요] 이웃 객체를 ID 문자열 리스트로 변환하는 Validator 추가
     @field_validator('neighbors', mode='before')
     @classmethod
     def transform_neighbors(cls, v):
@@ -288,7 +288,7 @@ class PerformanceReportResponse(PerformanceReportBase):
         from_attributes = True
 
 
-# --- Reward Schemas ---
+# --- Reward Schemas (수정 및 추가) ---
 
 class RewardBase(BaseModel):
     name: str
@@ -300,14 +300,21 @@ class RewardBase(BaseModel):
 class RewardCreate(RewardBase):
     pass
 
+class RewardUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    cost: Optional[int] = None
+    image_url: Optional[str] = None
+    type: Optional[RewardTypeEnum] = None
+
 class RewardResponse(RewardBase):
     id: str
     
     class Config:
-        from_attributes = True
+        from_attributes = True 
 
 
-# --- Maker Schemas ---
+# --- Maker Schemas (수정 및 추가) ---
 
 class MakerBase(BaseModel):
     name: str
@@ -319,15 +326,22 @@ class MakerBase(BaseModel):
 class MakerCreate(MakerBase):
     pass
 
+class MakerUpdate(BaseModel):
+    name: Optional[str] = None
+    specialty: Optional[str] = None
+    location: Optional[str] = None
+    bio: Optional[str] = None
+    image_url: Optional[str] = None
+
 class MakerResponse(MakerBase):
     id: str
     products: List['MakerProductResponse'] = []
 
     class Config:
-        from_attributes = True
+        from_attributes = True 
 
 
-# --- MakerProduct Schemas ---
+# --- MakerProduct Schemas (수정 및 추가) ---
 
 class MakerProductBase(BaseModel):
     name: str
@@ -336,15 +350,20 @@ class MakerProductBase(BaseModel):
     image_url: str
 
 class MakerProductCreate(MakerProductBase):
-    maker_id: str
+    pass # maker_id는 URL 파라미터로 받을 예정
+
+class MakerProductUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[int] = None
+    image_url: Optional[str] = None
 
 class MakerProductResponse(MakerProductBase):
     id: str
     maker_id: str
     
     class Config:
-        from_attributes = True
-
+        from_attributes = True 
 
 # --- Party Schemas ---
 
@@ -440,3 +459,42 @@ class CategoryDistribution(BaseModel):
 # --- 순환 참조(ForwardRef) 업데이트 ---
 MakerResponse.model_rebuild()
 UserResponseWithItems.model_rebuild()
+
+class PostBase(BaseModel):
+    # 제목은 반드시 필요하며, 최소 1글자에서 최대 100글자
+    title: str = Field(..., min_length=1, max_length=100, description="게시글 제목")
+    
+    # 내용은 반드시 필요하며, 최소 1글자 이상
+    content: str = Field(..., min_length=1, description="게시글 내용")
+
+    # 이미지 파일은 실제로는 업로드로 받지만,
+    # DB에는 이미지 경로(또는 파일명) 문자열로 저장하므로 스키마에도 문자열 필드로 둠
+    image_url: Optional[str] = Field(
+        None,
+        description="게시글 이미지 경로 (예: /static/posts/xxx.jpg)"
+    )
+
+
+# 2. PostCreate: 게시글 생성 시 서버 내부에서 사용하는 입력 스키마
+class PostCreate(PostBase):
+    # 별도 필드 추가 없음 (title, content, image 그대로 사용)
+    pass
+
+
+# 3. PostUpdate: 기존 게시글 수정 시 사용하는 데이터
+class PostUpdate(BaseModel):
+    # 수정하고 싶은 필드만 보낼 수 있도록 Optional 처리
+    title: Optional[str] = Field(None, description="수정할 게시글 제목")
+    content: Optional[str] = Field(None, description="수정할 게시글 내용")
+    image_url: Optional[str] = Field(None, description="수정할 게시글 이미지 경로")
+
+
+# 4. Post: 클라이언트 응답용 최종 스키마
+class Post(PostBase):
+    post_id: str = Field(..., description="게시글 고유 ID")
+    user_id: str = Field(..., description="작성자 고유 ID")
+    created_at: datetime.datetime = Field(..., description="게시글 생성 시각")
+    updated_at: datetime.datetime = Field(..., description="게시글 최종 수정 시각")
+
+    class Config:
+        from_attributes = True  # SQLAlchemy 모델에서 속성 읽어오기
