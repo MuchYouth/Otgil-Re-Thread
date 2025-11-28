@@ -71,3 +71,4 @@ def delete_story(db: Session, story_id: str) -> bool:
         db.commit()
         return True
     return False
+

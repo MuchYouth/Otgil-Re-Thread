@@ -26,7 +26,7 @@ origins = [
 # CORS (Cross-Origin Resource Sharing) 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
