@@ -6,11 +6,11 @@ import enum
 
 # --- Enums ---
 class ClothingCategoryEnum(str, enum.Enum):
-    T_SHIRT = 'T-SHIRT'
-    JEANS = 'JEANS'
-    DRESS = 'DRESS'
-    JACKET = 'JACKET'
-    ACCESSORY = 'ACCESSORY'
+    티셔츠 = '티셔츠'
+    바지 = '바지'
+    드레스 = '드레스'
+    자켓 = '자켓'
+    악세서리 = '악세서리'
 
 class PartySubmissionStatusEnum(str, enum.Enum):
     PENDING = 'PENDING'
