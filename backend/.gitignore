@@ -58,9 +58,5 @@ logs/
 *.sqlite3
 *.db
 
-#이미지 파일 공유 X
-static/posts/
-
 migrations/
 alembic.ini
-
