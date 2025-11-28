@@ -4,6 +4,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, Da
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.sql import func
 import datetime
+from app.database import Base
 
 # SQLAlchemy Base 클래스 생성
 Base = declarative_base()
@@ -11,11 +12,11 @@ from app.database import Base
 # --- Enum 정의 ---
 # TypeScript: export type ClothingCategory = 'TSHIRT' | 'JEANS' | 'DRESS' | 'JACKET' | 'ACCESSORY';
 class ClothingCategoryEnum(enum.Enum):
-    TSHIRT = 'TSHIRT'
-    JEANS = 'JEANS'
-    DRESS = 'DRESS'
-    JACKET = 'JACKET'
-    ACCESSORY = 'ACCESSORY'
+    티셔츠 = '티셔츠'
+    바지 = '바지'
+    드레스 = '드레스'
+    자켓 = '자켓'
+    악세서리 = '악세서리'
 
 # TypeScript: partySubmissionStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
 class PartySubmissionStatusEnum(enum.Enum):

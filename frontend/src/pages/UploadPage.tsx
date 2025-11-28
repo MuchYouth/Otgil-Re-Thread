@@ -16,7 +16,7 @@ interface UploadPageProps {
 const UploadPage: React.FC<UploadPageProps> = ({ onItemAdd, acceptedParties }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<ClothingCategory>('T-SHIRT');
+  const [category, setCategory] = useState<ClothingCategory>('티셔츠');
   const [size, setSize] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -128,7 +128,7 @@ const UploadPage: React.FC<UploadPageProps> = ({ onItemAdd, acceptedParties }) =
                 <div>
                     <label htmlFor="category" className="block text-sm font-medium text-brand-text">카테고리</label>
                     <select id="category" value={category} onChange={e => setCategory(e.target.value as ClothingCategory)} className={standardInputClasses} required>
-                        <option>T-SHIRT</option><option>JEANS</option><option>DRESS</option><option>JACKET</option><option>ACCESSORY</option>
+                        <option>티셔츠</option><option>바지</option><option>드레스</option><option>자켓</option><option>악세서리</option>
                     </select>
                 </div>
                 <div>
