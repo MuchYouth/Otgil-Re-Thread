@@ -332,6 +332,26 @@ class Party(Base):
     stories = relationship('Story', back_populates='party')
     participations = relationship('PartyParticipation', back_populates='party', cascade="all, delete-orphan")
 
+    # [11월 29 ▼▼▼ 추가할 코드 ▼▼▼]
+    @property
+    def participants(self):
+        """
+        API 스키마(PartyResponse)가 요구하는 'participants' 필드를 위해
+        'participations' 관계 데이터를 가공하여 반환합니다.
+        """
+        results = []
+        for p in self.participations:
+            # 유저 정보가 로드되어 있다면 닉네임을 가져오고, 없으면 Unknown
+            nick = p.user.nickname if p.user else "Unknown"
+
+            # Pydantic 스키마(PartyParticipantResponse) 형태에 맞는 딕셔너리 생성
+            results.append({
+                "user_id": p.user_id,
+                "nickname": nick,
+                "status": p.status
+            })
+        return results
+
 # 뉴스레터
 class PerformanceReport(Base):
     __tablename__ = 'performance_reports'
