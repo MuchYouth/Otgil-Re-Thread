@@ -15,9 +15,10 @@ from fastapi import (
 from sqlalchemy.orm import Session
 from PIL import Image  # 이미지 압축/리사이즈용
 
-from app.api.deps import get_db
+from app.api.deps import get_db, get_current_user
 from app import schemas
 from app.crud import post as post_crud
+from app.models import User
 
 
 # ====== 이미지 압축 + 저장 헬퍼 ======
@@ -61,11 +62,6 @@ async def save_compressed_image(
     return f"/static/posts/{filename}"
 
 
-# 임시 사용자 ID. 실제로는 인증 시스템에서 가져와야 함.
-def get_current_user_id() -> str:
-    """로그인된 사용자 ID를 가져오는 의존성 (임시)"""
-    return "test_user_id_123"
-
 
 # 이 라우터에 정의된 모든 경로 앞에 자동으로 /posts 추가
 router = APIRouter(
@@ -81,7 +77,7 @@ async def create_post_route(
     content: str = Form(...),
     image: UploadFile | None = File(None),  # 실제 파일 업로드 (선택)
     db: Session = Depends(get_db),
-    current_user_id: str = Depends(get_current_user_id),
+    current_user: str = Depends(get_current_user),
 ):
     """
     새 게시글을 생성합니다.
@@ -107,7 +103,7 @@ async def create_post_route(
     return post_crud.create_post(
         db=db,
         post_create=post_create,
-        user_id=current_user_id,
+        user_id=current_user.id,
     )
 
 
@@ -147,7 +143,7 @@ async def update_post_route(
     content: Optional[str] = Form(None),
     image: UploadFile | None = File(None),   # 새 이미지 파일 (선택)
     db: Session = Depends(get_db),
-    current_user_id: str = Depends(get_current_user_id),
+    current_user: User = Depends(get_current_user),
 ):
     """게시글 수정 (텍스트 + 이미지 수정 가능)"""
     db_post = post_crud.get_post(db, post_id=post_id)
@@ -155,7 +151,7 @@ async def update_post_route(
         raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
 
     # 권한 체크
-    if db_post.user_id != current_user_id:
+    if db_post.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="수정 권한이 없습니다.")
 
     # --- 1. 텍스트 필드 수정 준비 ---
@@ -191,7 +187,7 @@ async def update_post_route(
 def delete_post_route(
     post_id: str,
     db: Session = Depends(get_db),
-    current_user_id: str = Depends(get_current_user_id),
+    current_user: str = Depends(get_current_user),
 ):
     """특정 게시글을 삭제합니다. (작성자만 삭제 가능)"""
     db_post = post_crud.get_post(db, post_id=post_id)
@@ -202,7 +198,7 @@ def delete_post_route(
         )
 
     # 권한 확인
-    if db_post.user_id != current_user_id:
+    if db_post.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="삭제 권한이 없습니다.",

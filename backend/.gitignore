@@ -57,3 +57,6 @@ logs/
 # 로컬 테스트용 SQLite DB 파일 (필요시)
 *.sqlite3
 *.db
+
+#이미지 파일 공유 X
+static/posts/
