@@ -60,3 +60,7 @@ logs/
 
 migrations/
 alembic.ini
+
+# SQLite 임시 파일
+*.db-shm
+*.db-wal
