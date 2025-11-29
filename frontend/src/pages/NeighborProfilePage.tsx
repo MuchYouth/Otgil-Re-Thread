@@ -31,7 +31,7 @@ const NeighborProfilePage: React.FC<NeighborProfilePageProps> = ({ neighbor, ite
   const [goodbyeTagModalItem, setGoodbyeTagModalItem] = useState<ClothingItem | null>(null);
 
   const isNeighbor = currentUser.neighbors?.includes(neighbor.id);
-
+  
   const handleShowTag = (item: ClothingItem) => {
     if (item.helloTag) {
       setHelloTagModalItem(item);
@@ -39,7 +39,7 @@ const NeighborProfilePage: React.FC<NeighborProfilePageProps> = ({ neighbor, ite
       setGoodbyeTagModalItem(item);
     }
   };
-
+  
   const neighborItemsWithTags = items.filter(item => (item.helloTag || item.goodbyeTag) && item.isListedForExchange);
 
   return (

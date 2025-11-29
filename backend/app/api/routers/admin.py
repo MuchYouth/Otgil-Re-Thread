@@ -66,26 +66,26 @@ def delete_party(
         raise HTTPException(status_code=404, detail="Party not found")
     return
 
-@router.patch("/parties/{party_id}/participants/{user_id}/status", response_model=PartyParticipantResponse, summary="참가자 상태 변경")
+
+@router.patch("/parties/{party_id}/participants/{user_id}/status", response_model=PartyParticipantResponse,
+              summary="참가자 상태 변경")
 def update_participant_status(
-    party_id: str,
-    user_id: str,
-    status_data: dict, # Body: {"status": "ACCEPTED" or "REJECTED"}
-    db: Session = Depends(get_db),
-    admin_user: User = Depends(get_current_admin_user)
+        party_id: str,
+        user_id: str,
+        status_data: dict,  # Body: {"status": "ACCEPTED" or "REJECTED"}
+        db: Session = Depends(get_db),
+        admin_user: User = Depends(get_current_admin_user)
 ):
     new_status = status_data.get("status")
     updated_participant = crud_admin.update_participant_status(db, party_id, user_id, new_status)
-    
+
     if not updated_participant:
         raise HTTPException(status_code=404, detail="Participant not found")
-        
-    # Pydantic 응답 호환성을 위해 닉네임 주입 (User 정보 조인 필요하나 간단히 처리)
-    # 실제로는 crud_admin.update_participant_status 내부에서 User를 조인해서 가져오거나
-    # 여기서 별도로 조회해야 함. 일단은 간단히 처리.
-    participant_user = crud_admin.db.query(User).filter(User.id == user_id).first() # type: ignore
+
+    # [수정됨] crud_admin.db -> db (함수 인자로 받은 세션 사용)
+    participant_user = db.query(User).filter(User.id == user_id).first()
     nickname = participant_user.nickname if participant_user else "Unknown"
-    
+
     # 반환 객체 구성 (ORM 객체 + nickname)
     response_data = {
         "user_id": updated_participant.user_id,
@@ -93,7 +93,6 @@ def update_participant_status(
         "status": updated_participant.status
     }
     return response_data
-
 
 # --- 아이템 검수 ---
 
