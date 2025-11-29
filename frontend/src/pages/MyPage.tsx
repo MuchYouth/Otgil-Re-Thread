@@ -69,6 +69,57 @@ const CreditRow: React.FC<{ credit: Credit }> = ({ credit }) => {
     );
 };
 
+// [1] 파티 선택 모달 컴포넌트 추가
+const PartySelectionModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    parties: Party[];
+    onSubmit: (partyId: string) => void;
+}> = ({ isOpen, onClose, parties, onSubmit }) => {
+    const [selectedPartyId, setSelectedPartyId] = useState<string>(parties.length > 0 ? parties[0].id : '');
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in p-4" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md relative" onClick={e => e.stopPropagation()}>
+                <button onClick={onClose} className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 text-2xl">&times;</button>
+                <h3 className="text-xl font-bold mb-4 text-brand-text">출품할 파티 선택</h3>
+                <p className="text-sm text-brand-text/70 mb-6">어떤 파티에 이 옷을 내놓으시겠어요?</p>
+                
+                <div className="space-y-3 mb-6 max-h-60 overflow-y-auto">
+                    {parties.map(party => (
+                        <label key={party.id} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${selectedPartyId === party.id ? 'border-brand-primary bg-brand-primary/5' : 'border-stone-200 hover:bg-stone-50'}`}>
+                            <input 
+                                type="radio" 
+                                name="partySelect" 
+                                value={party.id} 
+                                checked={selectedPartyId === party.id}
+                                onChange={(e) => setSelectedPartyId(e.target.value)}
+                                className="w-4 h-4 text-brand-primary focus:ring-brand-primary border-gray-300"
+                            />
+                            <div className="ml-3">
+                                <p className="font-semibold text-brand-text">{party.title}</p>
+                                <p className="text-xs text-brand-text/60">{party.date} · {party.location}</p>
+                            </div>
+                        </label>
+                    ))}
+                </div>
+
+                <div className="flex justify-end gap-2">
+                    <button onClick={onClose} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-lg font-medium">취소</button>
+                    <button 
+                        onClick={() => { onSubmit(selectedPartyId); onClose(); }}
+                        className="px-6 py-2 bg-brand-primary text-white rounded-lg font-bold hover:bg-brand-primary-dark transition-colors"
+                    >
+                        선택 완료
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats, clothingItems, credits, parties, onToggleListing, setPage, onSelectHostedParty, onPartySubmit, onCancelPartySubmit, onOffsetCredit, acceptedUpcomingParties }) => {
   const [activeSection, setActiveSection] = useState<MyPageSection>('CLOSET');
   const [qrModalParty, setQrModalParty] = useState<Party | null>(null);
@@ -76,7 +127,7 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
   const [burnAmount, setBurnAmount] = useState('');
   const [certificateData, setCertificateData] = useState<{ amount: number } | null>(null);
   const certificateRef = useRef<HTMLDivElement>(null);
-
+  const [submissionItemId, setSubmissionItemId] = useState<string | null>(null);
 
   const totalCredits = credits.reduce((sum, credit) => {
     return credit.type.startsWith('EARNED') ? sum + credit.amount : sum - credit.amount;
@@ -221,11 +272,7 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
                                         ) : (
                                             acceptedUpcomingParties.length > 0 ? (
                                                 <button
-                                                    onClick={() => {
-                                                        if (window.confirm(`'${acceptedUpcomingParties[0].title}' 파티에 이 옷을 출품하시겠습니까?`)) {
-                                                            onPartySubmit(item.id, acceptedUpcomingParties[0].id)
-                                                        }
-                                                    }}
+                                                    onClick={() => setSubmissionItemId(item.id)}
                                                     className="w-full font-bold py-2 px-4 rounded-full transition-colors bg-brand-primary text-white hover:bg-brand-primary-dark"
                                                 >
                                                     <i className="fa-solid fa-glass-cheers mr-2"></i>
@@ -464,6 +511,16 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
   return (
     <>
       {qrModalParty && <QRCodeModal partyTitle={qrModalParty.title} userName={user.nickname} onClose={() => setQrModalParty(null)} />}
+      <PartySelectionModal 
+          isOpen={!!submissionItemId}
+          onClose={() => setSubmissionItemId(null)}
+          parties={acceptedUpcomingParties}
+          onSubmit={(partyId) => {
+              if (submissionItemId) {
+                  onPartySubmit(submissionItemId, partyId);
+              }
+          }}
+      />
       {certificateData && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in p-4">
             <div className="bg-stone-50 p-6 sm:p-8 rounded-2xl shadow-2xl text-center">

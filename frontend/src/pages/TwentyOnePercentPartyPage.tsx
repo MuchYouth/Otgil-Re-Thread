@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Party, Page, User, ClothingItem } from '../types';
 import ClothingCard from '../components/ClothingCard';
 import GoodbyeTagModal from '../components/GoodbyeTagModal';
@@ -22,11 +22,65 @@ const TwentyOnePercentPartyPage: React.FC<TwentyOnePercentPartyPageProps> = ({ p
   const upcomingParties = parties.filter(p => p.status === 'UPCOMING');
   const [selectedFilter, setSelectedFilter] = useState<string>('');
 
-  const filteredItems = useMemo(() => {
-    if (!selectedFilter) return [];
-    return items.filter(item => item.submittedPartyId === selectedFilter && item.partySubmissionStatus === 'APPROVED');
-  }, [items, selectedFilter]);
+  const [lineupItems, setLineupItems] = useState<ClothingItem[]>([]);
+  const [isLoadingLineup, setIsLoadingLineup] = useState(false);
 
+  useEffect(() => {
+    const fetchLineup = async () => {
+        if (view === 'lineup' && selectedFilter) {
+            setIsLoadingLineup(true);
+            try {
+                const response = await fetch(`http://localhost:8000/parties/${selectedFilter}/items`);
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // 백엔드 데이터(snake_case)를 프론트엔드 타입(camelCase)으로 변환
+                    // (App.tsx에 있는 mapItem 로직과 유사하게 처리 필요)
+                    const formattedItems: ClothingItem[] = data.map((item: any) => ({
+                        id: item.id,
+                        name: item.name,
+                        description: item.description,
+                        category: item.category,
+                        size: item.size,
+                        imageUrl: item.image_url,
+                        userNickname: item.user_nickname,
+                        userId: item.user_id,
+                        isListedForExchange: item.is_listed_for_exchange,
+                        partySubmissionStatus: item.party_submission_status,
+                        submittedPartyId: item.submitted_party_id,
+                        // 태그 정보 매핑 (필요하다면)
+                        goodbyeTag: item.goodbye_tag ? {
+                            metWhen: item.goodbye_tag.met_when,
+                            metWhere: item.goodbye_tag.met_where,
+                            whyGot: item.goodbye_tag.why_got,
+                            wornCount: item.goodbye_tag.worn_count,
+                            whyLetGo: item.goodbye_tag.why_let_go,
+                            finalMessage: item.goodbye_tag.final_message
+                        } : undefined,
+                        helloTag: item.hello_tag ? {
+                            receivedFrom: item.hello_tag.received_from,
+                            receivedAt: item.hello_tag.received_at,
+                            firstImpression: item.hello_tag.first_impression,
+                            helloMessage: item.hello_tag.hello_message
+                        } : undefined
+                    }));
+
+                    setLineupItems(formattedItems);
+                } else {
+                    console.error("라인업 불러오기 실패");
+                    setLineupItems([]);
+                }
+            } catch (error) {
+                console.error("에러 발생:", error);
+            } finally {
+                setIsLoadingLineup(false);
+            }
+        }
+    };
+
+    fetchLineup();
+  }, [view, selectedFilter]); // view나 파티ID가 바뀌면 실행
+  
   const handleShowTag = (item: ClothingItem, tagType: 'hello' | 'goodbye') => {
     if (tagType === 'hello') {
         setHelloTagModalItem(item);
@@ -60,10 +114,15 @@ const TwentyOnePercentPartyPage: React.FC<TwentyOnePercentPartyPageProps> = ({ p
           </p>
         </div>
 
-        {filteredItems.length > 0 ? (
+        {isLoadingLineup ? (
+            <div className="text-center py-20">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary mx-auto mb-4"></div>
+                <p>라인업을 불러오는 중입니다...</p>
+            </div>
+        ) : lineupItems.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-              {filteredItems.map(item => (
-              <ClothingCard key={item.id} item={item} onShowTag={handleShowTag} />
+              {lineupItems.map(item => (
+                <ClothingCard key={item.id} item={item} onShowTag={handleShowTag} />
               ))}
           </div>
         ) : (
