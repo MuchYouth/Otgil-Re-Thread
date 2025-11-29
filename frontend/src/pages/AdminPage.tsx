@@ -34,11 +34,11 @@ const MOCK_DAILY_EXCHANGES: DailyActivity[] = [
 ];
 
 const MOCK_CATEGORY_DISTRIBUTION: CategoryDistribution[] = [
-    { category: 'T-SHIRT', count: 1890 },
-    { category: 'JEANS', count: 1240 },
-    { category: 'DRESS', count: 980 },
-    { category: 'JACKET', count: 1530 },
-    { category: 'ACCESSORY', count: 231 },
+    { category: '티셔츠', count: 1890 },
+    { category: '바지', count: 1240 },
+    { category: '드레스', count: 980 },
+    { category: '자켓', count: 1530 },
+    { category: '악세서리', count: 231 },
 ];
 
 interface AdminPageProps {
