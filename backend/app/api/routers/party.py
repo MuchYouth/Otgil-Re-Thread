@@ -64,6 +64,7 @@ def create_party(
     """
     return crud_party.create_party(db=db, party=party_in, host_id=str(current_user.id))
 
+
 # 3. 파티 참가 신청
 @router.post(
     "/{party_id}/join",
@@ -71,24 +72,23 @@ def create_party(
     summary="파티 참가 신청"
 )
 def join_party(
-    party_id: str,
-    invitation_code: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+        party_id: str,
+        # invitation_code: str,  <-- [삭제] 초대 코드 파라미터 제거
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
-    db_party = crud_party.get_party_by_invitation_code(db, code=invitation_code)
-    
-    # [수정됨] Pylance 오류 해결: str()로 감싸서 단순 문자열 비교임을 명시
-    if not db_party or str(db_party.id) != str(party_id):
-        raise HTTPException(status_code=404, detail="파티 정보가 올바르지 않거나 초대 코드가 잘못되었습니다.")
+    # [수정] 초대 코드 대신 party_id로 직접 파티 조회
+    db_party = crud_party.get_party(db, party_id=party_id)
+
+    if not db_party:
+        raise HTTPException(status_code=404, detail="파티를 찾을 수 없습니다.")
 
     return crud_party.add_participant(
         db=db,
         party_id=party_id,
-        user_id=str(current_user.id), 
+        user_id=str(current_user.id),
         nickname=str(current_user.nickname)
     )
-
 
 # 4. 파티 상세 정보 조회
 @router.get(
