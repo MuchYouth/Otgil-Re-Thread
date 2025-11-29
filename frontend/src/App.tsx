@@ -1156,32 +1156,36 @@ const App: React.FC = () => {
     };
 
     const handleUpdatePartyItemStatus = async (itemId: string, status: 'APPROVED' | 'REJECTED') => {
-        if (!currentUser?.isAdmin) return;
+        // 1. 관리자 권한 체크
+        if (!currentUser?.isAdmin) {
+            alert("관리자 권한이 필요합니다.");
+            return;
+        }
+        
+        // 2. 토큰 가져오기
         const token = localStorage.getItem('access_token');
         if (!token) return;
 
         try {
-            // Admin API 호출 (기존에 만들어둔 API 활용)
-            const response = await fetch(`http://localhost:8000/items/${itemId}/approve?status=${status}`, { // URL 수정 필요할 수 있음 (라우터 확인)
-                // 백엔드 라우터: @router.post("/items/{item_id}/approve") -> 내부적으로 status="APPROVED" 고정이었음.
-                // 반려(REJECTED)를 위해서는 백엔드 수정이 필요하거나, 
-                // items.py의 @router.put("/submission_status/{item_id}")를 사용해야 함.
-                // 여기서는 items.py에 있는 update_item_submission_status_admin 사용
-            });
-            
-            // items.py의 update_item_submission_status_admin 사용
-            const res = await fetch(`http://localhost:8000/items/submission_status/${itemId}?status_in=${status}`, {
+            // 3. 백엔드 API 호출 (PUT /items/submission_status/{id})
+            const response = await fetch(`http://localhost:8000/items/submission_status/${itemId}?status_in=${status}`, {
                 method: "PUT",
-                headers: { "Authorization": `Bearer ${token}` }
+                headers: { 
+                    "Authorization": `Bearer ${token}` 
+                }
             });
 
-            if (res.ok) {
+            if (response.ok) {
+                alert(`아이템이 ${status === 'APPROVED' ? '승인' : '반려'} 처리되었습니다.`);
+                // 4. 목록 새로고침 (화면에 즉시 반영됨)
                 fetchClothingItems();
             } else {
-                alert("상태 변경 실패");
+                const err = await response.json();
+                alert(`처리 실패: ${err.detail}`);
             }
         } catch (error) {
             console.error("Error updating item status:", error);
+            alert("서버 통신 중 오류가 발생했습니다.");
         }
     };
     // credit handler
