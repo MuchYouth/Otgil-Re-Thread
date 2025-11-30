@@ -60,3 +60,6 @@ logs/
 
 migrations/
 alembic.ini
+
+# 로컬 db에서 테스트할 때 생성되는 미디어 파일들
+static/posts
