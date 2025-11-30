@@ -49,8 +49,10 @@ const TwentyOnePercentPartyPage: React.FC<TwentyOnePercentPartyPageProps> = ({ p
                         category: item.category,
                         size: item.size,
                         imageUrl: item.image_url,
-                        userNickname: item.user_nickname,
-                        userId: item.user_id,
+                        // ▼▼▼ [확인] 이 부분이 정확히 연결되어야 합니다! ▼▼▼
+                        userId: item.user_id,             // user_id -> userId
+                        userNickname: item.user_nickname, // user_nickname -> userNickname
+                        // ▲▲▲ --------------------------------------- ▲▲▲
                         isListedForExchange: item.is_listed_for_exchange,
                         partySubmissionStatus: item.party_submission_status,
                         submittedPartyId: item.submitted_party_id,
@@ -115,7 +117,7 @@ const TwentyOnePercentPartyPage: React.FC<TwentyOnePercentPartyPageProps> = ({ p
         const payload = {
             hello_tag: {
                 // 왼쪽(백엔드용): 오른쪽(프론트엔드 데이터)
-                received_from: tagData.receivedFrom,       
+                received_from: tagData.receivedFrom || "알 수 없음", // <--- 여기가 핵심!      
                 received_at: tagData.receivedAt,           
                 first_impression: tagData.firstImpression, 
                 hello_message: tagData.helloMessage        

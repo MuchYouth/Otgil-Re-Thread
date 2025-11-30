@@ -314,29 +314,26 @@ def check_in(
          
     return updated_participation
 
-# [12] 특정 파티의 라인업(승인된 아이템들) 조회 API
-@router.get("/{party_id}/items", response_model=List[schemas.ClothingItemBase])
+# backend/app/api/routers/parties.py
+
+@router.get("/{party_id}/items", response_model=List[schemas.ClothingItemResponse])
 def read_party_lineup(party_id: str, db: Session = Depends(get_db)):
-    # 1. 아이템 조회
-    items = crud_item.get_items_by_party(db, party_id=party_id)
+    items = crud_party.get_party_items(db, party_id=party_id)
     
     if not items:
         return []
     
-    # 2. 닉네임 매핑 로직 추가
-    # items는 SQLAlchemy 모델 객체 리스트입니다.
-    # 각 item의 owner_id를 이용해 User 테이블에서 닉네임을 찾아 넣어줍니다.
-    
-    # (최적화를 위해 owner_id들을 모아서 한 번에 조회할 수도 있지만, 지금은 간단하게 구현합니다)
     for item in items:
-        # item.owner_id를 이용해 유저 조회
-        user = db.query(User).filter(User.id == item.user_id).first()
-        if user:
-            # 스키마에 정의한 user_nickname 필드에 값을 할당
-            # (SQLAlchemy 객체에 없는 필드를 강제로 넣는 것이므로 setattr 사용하거나, Pydantic 모델로 변환 시 처리)
-            item.user_nickname = user.nickname
+        # 1. DB 모델에 있는 user_id 가져오기
+        # (models.py에 user_id라고 적혀있다고 가정)
+        current_user_id = item.user_id 
+        
+        # 2. 닉네임 찾기
+        if current_user_id:
+            user = db.query(User).filter(User.id == current_user_id).first()
+            item.user_nickname = user.nickname if user else "알 수 없음"
         else:
-            item.user_nickname = "알 수 없음"
+            item.user_nickname = "정보 없음"
 
     return items
 

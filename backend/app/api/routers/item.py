@@ -322,7 +322,8 @@ def exchange_item(
     
     # 6. Hello 태그 저장
     new_hello_tag = models.HelloTag(
-        **exchange_data.hello_tag.dict(),
+        id=str(uuid.uuid4()),  # <--- ★★★ 이 줄을 꼭 추가해야 합니다! ★★★
+        **exchange_data.hello_tag.model_dump(),
         clothing_item_id=item.id
     )
     db.add(new_hello_tag)

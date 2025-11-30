@@ -649,47 +649,150 @@ const App: React.FC = () => {
         setRewards(prev => [...prev, newReward]);
         alert('새로운 바우처가 등록되었습니다.');
     };
-    // [수정] 아이템 등록 시 크레딧 적립
+    
+    // [수정] 아이템 등록 핸들러 (URL 수정 + 태그 변수명 변환 적용)
     const handleItemAdd = async (itemInfo: any, options: any) => {
+        // 1. 로그인 확인
         if (!currentUser) {
-            alert("Login is required.");
+            alert("로그인이 필요합니다.");
             setPage(Page.LOGIN);
             return;
         }
+        
         const token = localStorage.getItem('access_token');
-        if (!token) return;
+        if (!token) {
+            alert("인증 정보가 없습니다. 다시 로그인해주세요.");
+            setPage(Page.LOGIN);
+            return;
+        }
 
         try {
-            // 1. 아이템 등록 API 호출 (생략 - 기존 코드와 동일)
+            // ---------------------------------------------------------
+            // [Step 1] 아이템 등록
+            // ---------------------------------------------------------
             const itemPayload = {
                 name: itemInfo.name,
                 description: itemInfo.description,
                 category: itemInfo.category,
                 size: itemInfo.size,
-                image_url: itemInfo.imageUrl
+                image_url: itemInfo.imageUrl // 백엔드는 image_url을 원함
             };
-            const createRes = await fetch("http://localhost:8000/items/add", {
+
+            // https://www.wordreference.com/koen/%ED%99%95%EC%9D%B8 /items/add 가 맞습니다.
+            const createRes = await fetch("http://localhost:8000/items/add", { 
                 method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                headers: { 
+                    "Content-Type": "application/json", 
+                    "Authorization": `Bearer ${token}` 
+                },
                 body: JSON.stringify(itemPayload)
             });
-            if (!createRes.ok) throw new Error("아이템 등록 실패");
+
+            if (!createRes.ok) {
+                 if (createRes.status === 401) throw new Error("로그인 세션이 만료되었습니다.");
+                 const errData = await createRes.json();
+                 console.error("아이템 등록 에러 상세:", errData); // 콘솔에도 출력
+                 
+                 // 에러 메시지가 배열인 경우(422)와 일반 문자열인 경우를 구분해서 보여줌
+                 const errorMessage = Array.isArray(errData.detail) 
+                    ? errData.detail.map((e: any) => `${e.loc.join('.')} -> ${e.msg}`).join('\n') 
+                    : errData.detail;
+
+                 throw new Error(`아이템 등록 실패:\n${errorMessage}`);
+            }
+
             const createdItem = await createRes.json();
             const itemId = createdItem.id;
 
-            // 2. 태그 API 호출 (생략 - 기존 코드와 동일)
-            if (options.goodbyeTag) { /* ... */ }
-            if (options.helloTag) { /* ... */ }
+            // ---------------------------------------------------------
+            // [Step 2] 태그 등록 (변수명 변환 필수!)
+            // ---------------------------------------------------------
+            const tagHeaders = {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            };
 
+            // 1) Goodbye 태그가 있는 경우
+            if (options.goodbyeTag) {
+                // ▼▼▼ [핵심] 프론트엔드(camelCase) -> 백엔드(snake_case) 변환 ▼▼▼
+                const goodbyePayload = {
+                    clothing_item_id: itemId,
+                    met_when: options.goodbyeTag.metWhen,
+                    met_where: options.goodbyeTag.metWhere,
+                    why_got: options.goodbyeTag.whyGot,
+                    worn_count: Number(options.goodbyeTag.wornCount),
+                    why_let_go: options.goodbyeTag.whyLetGo,
+                    final_message: options.goodbyeTag.finalMessage,
+                };
+                // ▲▲▲ -------------------------------------------------- ▲▲▲
 
+                // 파티 출품이 선택된 경우
+                if (options.selectedPartyId) {
+                     await fetch(`http://localhost:8000/items/modify/${itemId}`, {
+                        method: "PATCH",
+                        headers: tagHeaders,
+                        body: JSON.stringify({ 
+                            submitted_party_id: options.selectedPartyId,
+                            party_submission_status: 'PENDING'
+                        })
+                    });
+                }
+
+                // 태그 전송
+                const tagRes = await fetch(`http://localhost:8000/tags/goodbye`, {
+                    method: "POST",
+                    headers: tagHeaders,
+                    body: JSON.stringify(goodbyePayload)
+                });
+                
+                if (!tagRes.ok) {
+                    const err = await tagRes.json();
+                    console.error("Goodbye 태그 등록 실패:", err);
+                    alert(`태그 등록 중 오류가 발생했습니다: ${JSON.stringify(err.detail)}`);
+                }
+            }
+
+            // 2) Hello 태그가 있는 경우
+            if (options.helloTag) {
+                // ▼▼▼ [핵심] 프론트엔드(camelCase) -> 백엔드(snake_case) 변환 ▼▼▼
+                const helloPayload = {
+                    clothing_item_id: itemId,
+                    received_from: options.helloTag.receivedFrom,
+                    received_at: options.helloTag.receivedAt,
+                    first_impression: options.helloTag.firstImpression,
+                    hello_message: options.helloTag.helloMessage
+                };
+                // ▲▲▲ -------------------------------------------------- ▲▲▲
+
+                const tagRes = await fetch(`http://localhost:8000/tags/hello`, {
+                    method: "POST",
+                    headers: tagHeaders,
+                    body: JSON.stringify(helloPayload)
+                });
+                
+                if (!tagRes.ok) {
+                    const err = await tagRes.json();
+                    console.error("Hello 태그 등록 실패:", err);
+                    alert(`태그 등록 중 오류가 발생했습니다: ${JSON.stringify(err.detail)}`);
+                }
+            }
+
+            // ---------------------------------------------------------
+            // [Step 3] 마무리
+            // ---------------------------------------------------------
             alert('아이템이 성공적으로 등록되었습니다!');
-            fetchClothingItems();
+            fetchClothingItems(); 
             setPage(Page.MY_PAGE);
 
         } catch (error: any) {
+            console.error("Upload Error:", error);
             alert(`오류 발생: ${error.message}`);
+            if (error.message.includes("세션") || error.message.includes("401")) {
+                 setPage(Page.LOGIN);
+            }
         }
     };
+
     const handleToggleListing = async (itemId: string) => {
         if (!currentUser) return;
         const token = localStorage.getItem('access_token');

@@ -148,6 +148,7 @@ class GoodbyeTag(Base):
     __tablename__ = 'goodbye_tags'
     
     # 1:1 관계를 위해 ClothingItem의 ID를 PK/FK로 사용
+    id = Column(String, primary_key=True, index=True)
     clothing_item_id = Column(String, ForeignKey('clothing_items.id'), primary_key=True)
     
     met_when = Column(String)
@@ -165,6 +166,7 @@ class HelloTag(Base):
     __tablename__ = 'hello_tags'
     
     # 1:1 관계를 위해 ClothingItem의 ID를 PK/FK로 사용
+    id = Column(String, primary_key=True, index=True)
     clothing_item_id = Column(String, ForeignKey('clothing_items.id'), primary_key=True)
 
     received_from = Column(String)
