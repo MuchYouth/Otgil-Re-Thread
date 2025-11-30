@@ -186,6 +186,13 @@ const AdminPage: React.FC<AdminPageProps> = ({ parties, clothingItems, users, on
           onSubmit={handlePartyFormSubmit}
           eventToEdit={partyToEdit}
       />
+      {/* [수정] isOpen 속성 추가 */}
+      <ParticipantManagerModal
+          party={partyToManage}
+          isOpen={isParticipantModalOpen}  // <-- 이 부분이 빠져 있었습니다. 추가해주세요!
+          onClose={() => setIsParticipantModalOpen(false)}
+          onUpdateStatus={onUpdateParticipantStatus}
+      />
       <ParticipantManagerModal
           party={partyToManage}
           onClose={() => setIsParticipantModalOpen(false)}
