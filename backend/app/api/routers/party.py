@@ -15,6 +15,9 @@ from app.schemas import (
 from app.models import User
 from app.api.deps import get_db, get_current_user, get_current_admin_user
 from app.crud import party as crud_party
+from app.crud import item as crud_item
+from app import schemas, models
+from app.api import deps
 
 router = APIRouter()
 
@@ -310,3 +313,49 @@ def check_in(
          raise HTTPException(status_code=404, detail="참가자 명단에 없거나 신청하지 않은 유저입니다.")
          
     return updated_participation
+
+# [12] 특정 파티의 라인업(승인된 아이템들) 조회 API
+@router.get("/{party_id}/items", response_model=List[schemas.ClothingItemBase])
+def read_party_lineup(party_id: str, db: Session = Depends(get_db)):
+    # 1. 아이템 조회
+    items = crud_item.get_items_by_party(db, party_id=party_id)
+    
+    if not items:
+        return []
+    
+    # 2. 닉네임 매핑 로직 추가
+    # items는 SQLAlchemy 모델 객체 리스트입니다.
+    # 각 item의 owner_id를 이용해 User 테이블에서 닉네임을 찾아 넣어줍니다.
+    
+    # (최적화를 위해 owner_id들을 모아서 한 번에 조회할 수도 있지만, 지금은 간단하게 구현합니다)
+    for item in items:
+        # item.owner_id를 이용해 유저 조회
+        user = db.query(User).filter(User.id == item.user_id).first()
+        if user:
+            # 스키마에 정의한 user_nickname 필드에 값을 할당
+            # (SQLAlchemy 객체에 없는 필드를 강제로 넣는 것이므로 setattr 사용하거나, Pydantic 모델로 변환 시 처리)
+            item.user_nickname = user.nickname
+        else:
+            item.user_nickname = "알 수 없음"
+
+    return items
+
+# [13] 관리자: 파티 교환 활성화/비활성화 토글
+@router.patch("/{party_id}/toggle-active")
+def toggle_party_active(
+    party_id: str,
+    active: bool, # true면 시작, false면 중지
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(deps.get_current_user)
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    party = crud_party.get_party(db, party_id=party_id)
+    if not party:
+        raise HTTPException(status_code=404, detail="Party not found")
+        
+    party.is_active = active
+    db.commit()
+    db.refresh(party)
+    return party

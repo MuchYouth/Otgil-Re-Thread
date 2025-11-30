@@ -4,6 +4,7 @@ from typing import List
 
 from app.models import ClothingItem, PartySubmissionStatusEnum, GoodbyeTag, HelloTag
 from app.schemas import ClothingItemCreate, ClothingItemUpdate, GoodbyeTagCreate, HelloTagCreate
+from app import models
 
 def get_item(db: Session, item_id: str) -> ClothingItem | None:
     """ID로 단일 아이템을 조회합니다."""
@@ -116,3 +117,11 @@ def create_hello_tag(db: Session, db_item: ClothingItem, tag_in: HelloTagCreate)
     db.commit()
     db.refresh(db_item)
     return db_item
+
+# backend/app/crud/item.py (또는 crud 관련 파일)
+
+def get_items_by_party(db: Session, party_id: str):
+    return db.query(models.ClothingItem).filter(
+        models.ClothingItem.submitted_party_id == party_id,
+        models.ClothingItem.party_submission_status == "APPROVED"  # 승인된 것만 조회
+    ).all()

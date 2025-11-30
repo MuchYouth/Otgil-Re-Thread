@@ -311,6 +311,7 @@ class Party(Base):
     # `details: string[]`는 JSON 타입을 사용하는 것이 유연합니다. (PostgreSQL의 ARRAY(String)도 가능)
     details = Column(JSON, nullable=True) 
     status = Column(DBEnum(PartyStatusEnum), nullable=False, default=PartyStatusEnum.PENDING_APPROVAL)
+    is_active = Column(Boolean, default=False)
     invitation_code = Column(String, unique=True, nullable=False)
     
     # Foreign Key

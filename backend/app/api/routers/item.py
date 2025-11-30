@@ -6,6 +6,11 @@ from app.api.deps import get_db, get_current_user, get_current_admin_user
 from app.schemas import ClothingItemCreate, ClothingItemResponse, ClothingItemUpdate, PartySubmissionStatusEnum, GoodbyeTagCreate, HelloTagCreate
 from app.models import User, ClothingItem
 from app.crud import item as crud_item
+from app.crud import party as crud_party
+from app import schemas, models
+from app.api import deps
+import uuid  # <-- [추가 1] UUID 생성용
+from sqlalchemy.sql import func  # <-- [추가 2] DB 시간(func.now()) 사용용
 
 router = APIRouter()
 
@@ -235,3 +240,94 @@ def create_hello_tag_for_item(
 
     updated_item = crud_item.create_hello_tag(db=db, db_item=db_item, tag_in=tag_in)
     return updated_item
+
+@router.put("/submission_status/{item_id}", response_model=schemas.ClothingItemBase)
+def update_item_submission_status(
+    item_id: str,
+    status_in: str,  # URL 쿼리 파라미터로 받음 (?status_in=APPROVED)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(deps.get_current_user),
+):
+    # 1. 관리자 권한 확인
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not enough privileges")
+
+    # 2. 아이템 조회
+    item = crud_item.get_item(db, id=item_id) 
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    # 3. 상태 업데이트 ('APPROVED' or 'REJECTED')
+    item.party_submission_status = status_in
+    
+    # 4. 저장
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    
+    return item
+
+# backend/app/api/routers/items.py
+
+@router.post("/{item_id}/exchange")
+def exchange_item(
+    item_id: str,
+    exchange_data: schemas.ItemExchangeRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(deps.get_current_user)
+):
+    """
+    아이템 교환 처리:
+    1. (수정됨) 구매자 크레딧 차감 없음 (무료 교환 or 포인트 소모 안 함)
+    2. 판매자(원주인) 크레딧 적립 (+1000)
+    3. 아이템 소유권 이전 및 Hello 태그 저장
+    """
+    # 1. 아이템 조회
+    item = crud_item.get_item(db, item_id=item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+        
+    # 2. 본인 아이템인지 확인
+    if item.user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot exchange your own item")
+
+    # 3. 파티 활성화 여부 확인
+    if item.submitted_party_id:
+        party = crud_party.get_party(db, party_id=item.submitted_party_id)
+        if party and not party.is_active:
+             raise HTTPException(status_code=400, detail="This party is not active for exchange yet.")
+
+    # 4. 크레딧 처리 (판매자에게만 지급)
+    EXCHANGE_REWARD = 1000
+    previous_owner_id = item.user_id
+
+    # [수정] 구매자 차감 로직 삭제됨
+    
+    # 판매자(원주인) 적립
+    seller_credit = models.Credit(
+        id=str(uuid.uuid4()),
+        user_id=previous_owner_id,
+        amount=EXCHANGE_REWARD,
+        type="EARNED_CLOTHING",
+        activity_name=f"옷 교환: {item.name} (판매)",
+        date=func.now()
+    )
+    db.add(seller_credit)
+    
+    # 5. 아이템 소유권 이전 및 상태 초기화
+    item.user_id = current_user.id         # 새 주인 = 나
+    item.is_listed_for_exchange = False     # 리스트에서 제거
+    item.party_submission_status = None     
+    item.submitted_party_id = None          
+    
+    # 6. Hello 태그 저장
+    new_hello_tag = models.HelloTag(
+        **exchange_data.hello_tag.dict(),
+        clothing_item_id=item.id
+    )
+    db.add(new_hello_tag)
+    
+    db.commit()
+    db.refresh(item)
+    
+    return {"message": "Exchange successful", "item": item}

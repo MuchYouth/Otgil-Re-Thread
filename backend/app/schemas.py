@@ -75,11 +75,13 @@ class HelloTagResponse(HelloTagBase):
 # --- ClothingItem Schemas ---
 
 class ClothingItemBase(BaseModel):
+    id: str
     name: str
     description: str
     category: ClothingCategoryEnum
     size: str
     image_url: str
+    user_nickname: Optional[str] = None
 
 class ClothingItemCreate(ClothingItemBase):
     pass
@@ -91,6 +93,11 @@ class ClothingItemUpdate(BaseModel):
     size: Optional[str] = None
     image_url: Optional[str] = None
     is_listed_for_exchange: Optional[bool] = None
+
+    # ▼▼▼ [이 두 줄을 반드시 추가해야 합니다!] ▼▼▼
+    submitted_party_id: Optional[str] = None
+    party_submission_status: Optional[str] = None 
+    # ▲▲▲ ---------------------------------- ▲▲▲
 
 class ClothingItemResponse(ClothingItemBase):
     id: str
@@ -392,6 +399,7 @@ class PartyBase(BaseModel):
     location: str
     image_url: str
     details: List[str]
+    is_active: bool = False  # 교환 가능 상태 여부
 
 class PartyCreate(PartyBase):
     pass
@@ -419,6 +427,10 @@ class PartyResponse(PartyBase):
 
     class Config:
         from_attributes = True
+
+# [추가] 아이템 교환 요청용 스키마
+class ItemExchangeRequest(BaseModel):
+    hello_tag: HelloTagBase  # 교환 시 작성할 헬로 태그 정보
 
 
 # --- Admin Schemas (Read-only) ---
@@ -498,3 +510,4 @@ class Post(PostBase):
 
     class Config:
         from_attributes = True  # SQLAlchemy 모델에서 속성 읽어오기
+
