@@ -24,6 +24,7 @@ interface MyPageProps {
   onCancelPartySubmit: (itemId: string) => void;
   onOffsetCredit: (amount: number) => boolean;
   acceptedUpcomingParties: Party[];
+  onDeleteItem: (itemId: string) => void;
 }
 
 const SectionButton: React.FC<{
@@ -120,7 +121,7 @@ const PartySelectionModal: React.FC<{
     );
 };
 
-const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats, clothingItems, credits, parties, onToggleListing, setPage, onSelectHostedParty, onPartySubmit, onCancelPartySubmit, onOffsetCredit, acceptedUpcomingParties }) => {
+const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats, clothingItems, credits, parties, onToggleListing, setPage, onSelectHostedParty, onPartySubmit, onCancelPartySubmit, onOffsetCredit, acceptedUpcomingParties , onDeleteItem }) => {
   const [activeSection, setActiveSection] = useState<MyPageSection>('CLOSET');
   const [qrModalParty, setQrModalParty] = useState<Party | null>(null);
   const [neighborSearchTerm, setNeighborSearchTerm] = useState('');
@@ -218,7 +219,17 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
             {clothingItems.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                     {clothingItems.map(item => (
-                        <div key={item.id} className="border rounded-lg p-3 flex flex-col bg-white">
+                        <div key={item.id} className="border rounded-lg p-3 flex flex-col bg-white relative group">
+                            <button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDeleteItem(item.id);
+                                }}
+                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center bg-white/80 rounded-full text-stone-400 hover:text-red-500 hover:bg-white shadow-sm transition-all z-10 opacity-0 group-hover:opacity-100" // opacity 추가로 호버 효과 강화
+                                title="삭제하기"
+                            >
+                                <i className="fa-solid fa-trash-can"></i>
+                            </button>
                             <img src={item.imageUrl} alt={item.name} className="w-full h-48 object-cover rounded-md mb-2" />
                             <div className="flex-grow">
                                 <p className="font-semibold truncate text-brand-text">{item.name}</p>
@@ -226,6 +237,16 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
                             </div>
                             
                             <div className="mt-3 w-full flex flex-col space-y-2">
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDeleteItem(item.id);
+                                    }}
+                                    className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center bg-white/80 rounded-full text-stone-400 hover:text-red-500 hover:bg-white shadow-sm transition-all z-10"
+                                    title="삭제하기"
+                                >
+                                    <i className="fa-solid fa-trash-can"></i>
+                                </button>
                                 {item.helloTag ? (
                                     <>
                                         <div className="text-center text-xs font-bold text-blue-600 bg-blue-100 py-1 rounded-full">HELLO 태그 아이템</div>
@@ -243,7 +264,6 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
                                 ) : (
                                     <>
                                         <div className="text-center text-xs font-bold text-purple-600 bg-purple-100 py-1 rounded-full">GOODBYE 태그 아이템</div>
-                                        {/* [▼▼▼ 추가할 코드 시작 ▼▼▼] */}
                                         <button
                                             onClick={() => onToggleListing(item.id)}
                                             className={`w-full font-bold py-2 px-4 rounded-full transition-colors ${
@@ -254,20 +274,17 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
                                         >
                                             {item.isListedForExchange ? '프로필에서 숨기기' : '프로필에 표시하기'}
                                         </button>
-                                        {/* [▲▲▲ 추가할 코드 끝 ▲▲▲] */}
                                         {item.partySubmissionStatus ? (
                                             <>
                                                 <p className={`text-center text-sm font-semibold p-2 rounded-md ${submissionStatusInfo[item.partySubmissionStatus].color}`}>
                                                     {submissionStatusInfo[item.partySubmissionStatus].text}
                                                 </p>
-                                                {(item.partySubmissionStatus === 'PENDING' || item.partySubmissionStatus === 'REJECTED') && (
-                                                    <button
+                                                <button
                                                         onClick={() => onCancelPartySubmit(item.id)}
                                                         className="w-full font-bold py-2 px-4 rounded-full transition-colors bg-gray-500 text-white hover:bg-gray-600"
                                                     >
                                                         파티 출품 취소
-                                                    </button>
-                                                )}
+                                                </button>
                                             </>
                                         ) : (
                                             acceptedUpcomingParties.length > 0 ? (

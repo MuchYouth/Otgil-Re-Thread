@@ -133,7 +133,8 @@ const MOCK_PARTIES: Party[] = [
             { userId: 'user1', nickname: 'EcoFashionista', status: 'ACCEPTED' },
             { userId: 'user2', nickname: '해삐영', status: 'ACCEPTED' },
         ],
-        kitDetails: { participants: 15, itemsPerPerson: 5, cost: 80000 }
+        kitDetails: { participants: 15, itemsPerPerson: 5, cost: 80000 },
+        isActive: true
     },
     { 
         id: 'party2', 
@@ -150,7 +151,8 @@ const MOCK_PARTIES: Party[] = [
             { userId: 'user1', nickname: 'EcoFashionista', status: 'PENDING' },
             { userId: 'user3', nickname: 'StyleSeeker', status: 'PENDING' },
         ],
-        kitDetails: { participants: 20, itemsPerPerson: 3, cost: 95000 }
+        kitDetails: { participants: 20, itemsPerPerson: 3, cost: 95000 },
+        isActive: true
     },
     { 
         id: 'party3', 
@@ -168,7 +170,8 @@ const MOCK_PARTIES: Party[] = [
             { userId: 'user2', nickname: '해삐영', status: 'REJECTED' },
         ],
         impact: { itemsExchanged: 50, waterSaved: 135000, co2Reduced: 275 },
-        kitDetails: { participants: 10, itemsPerPerson: 5, cost: 70000 }
+        kitDetails: { participants: 10, itemsPerPerson: 5, cost: 70000 },
+        isActive: false
     }
 ];
 
@@ -371,7 +374,8 @@ const App: React.FC = () => {
                     participants: p.kit_participants,
                     itemsPerPerson: p.kit_items_per_person,
                     cost: p.kit_cost
-                } : undefined
+                } : undefined,
+                isActive: p.is_active
             }));
 
             // 중복 제거 (API 호출이 여러번이라 중복될 수 있음)
@@ -1325,7 +1329,7 @@ const App: React.FC = () => {
             case Page.LOGIN: return <LoginPage onLogin={handleLogin} setPage={setPage} />;
             case Page.SIGNUP: return <SignUpPage onSignUp={handleSignUp} setPage={setPage} />;
             case Page.MY_PAGE:
-                return currentUser ? <MyPage user={currentUser} allUsers={users} onToggleNeighbor={handleToggleNeighbor} stats={userImpactStats} clothingItems={clothingItems.filter(item => item.userId === currentUser.id)} credits={userCredits} parties={parties} onToggleListing={handleToggleListing} onSelectHostedParty={handleSelectParty} setPage={setPage} onPartySubmit={handlePartySubmit} onCancelPartySubmit={handleCancelPartySubmit} onOffsetCredit={handleOffsetCredit} acceptedUpcomingParties={acceptedUpcomingPartiesForUser} /> : <LoginPage onLogin={handleLogin} setPage={setPage} />;
+                return currentUser ? <MyPage user={currentUser} allUsers={users} onToggleNeighbor={handleToggleNeighbor} stats={userImpactStats} clothingItems={clothingItems.filter(item => item.userId === currentUser.id)} credits={userCredits} parties={parties} onToggleListing={handleToggleListing} onSelectHostedParty={handleSelectParty} setPage={setPage} onPartySubmit={handlePartySubmit} onCancelPartySubmit={handleCancelPartySubmit} onDeleteItem={handleDeleteItem} onOffsetCredit={handleOffsetCredit} acceptedUpcomingParties={acceptedUpcomingPartiesForUser} /> : <LoginPage onLogin={handleLogin} setPage={setPage} />;
             case Page.STORY_DETAIL:
                 const story = stories.find(s => s.id === selectedStoryId);
                 const storyComments = comments.filter(c => c.storyId === selectedStoryId);
@@ -1354,7 +1358,7 @@ const App: React.FC = () => {
 
             // [수정] API 데이터 전달
             case Page.TWENTY_ONE_PERCENT_PARTY:
-                return <TwentyOnePercentPartyPage parties={parties} items={clothingItems} currentUser={currentUser} onPartyApply={handlePartyApplication} setPage={setPage} />;
+                return <TwentyOnePercentPartyPage parties={parties} items={clothingItems} currentUser={currentUser} onPartyApply={handlePartyApplication} onExchangeComplete={fetchClothingItems} setPage={setPage} />;
             
             // [수정] 핸들러 전달
             case Page.PARTY_HOSTING:
@@ -1385,8 +1389,45 @@ const App: React.FC = () => {
                     onUpdateParticipantStatus={handleUpdateParticipantStatus}
                     onUpdatePartyItemStatus={handleUpdatePartyItemStatus}
                     onUpdatePartyApprovalStatus={handleUpdatePartyApprovalStatus}
+                    onDeleteItem={handleDeleteItem}
                 /> : <HomePage setPage={setPage} />;
             default: return <HomePage setPage={setPage} />;
+        }
+    };
+
+    const handleDeleteItem = async (itemId: string) => {
+        if (!currentUser) return;
+        
+        // 1. 사용자 확인
+        if (!window.confirm("정말로 이 옷을 삭제하시겠습니까? 복구할 수 없습니다.")) {
+            return;
+        }
+
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+
+        try {
+            // 2. 백엔드 API 호출 (DELETE /items/delete/{id})
+            // 백엔드 라우터 설정을 따름 (prefix가 /items라고 가정)
+            const response = await fetch(`http://localhost:8000/items/delete/${itemId}`, {
+                method: "DELETE",
+                headers: { 
+                    "Authorization": `Bearer ${token}` 
+                }
+            });
+
+            if (response.ok) {
+                // 204 No Content 성공 시
+                alert("옷이 삭제되었습니다.");
+                fetchClothingItems(); // 목록 새로고침 (중요!)
+            } else {
+                // 에러 처리
+                const err = await response.json(); // 혹시 에러 메시지가 있다면
+                alert(`삭제 실패: ${err.detail || '권한이 없거나 오류가 발생했습니다.'}`);
+            }
+        } catch (error) {
+            console.error("Error deleting item:", error);
+            alert("서버 통신 오류가 발생했습니다.");
         }
     };
 

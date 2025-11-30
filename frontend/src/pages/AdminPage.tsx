@@ -178,6 +178,34 @@ const AdminPage: React.FC<AdminPageProps> = ({ parties, clothingItems, users, on
         setIsParticipantModalOpen(true);
     };
 
+    // ▼▼▼ [추가] 교환 활성화/비활성화 토글 함수 ▼▼▼
+    const handleTogglePartyActive = async (partyId: string, isActive: boolean) => {
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+
+        try {
+            // API 호출: PATCH /parties/{id}/toggle-active?active={true/false}
+            const response = await fetch(`http://localhost:8000/parties/${partyId}/toggle-active?active=${isActive}`, {
+                method: "PATCH",
+                headers: { 
+                    "Authorization": `Bearer ${token}` 
+                }
+            });
+
+            if (response.ok) {
+                alert(`파티 교환이 ${isActive ? '시작' : '중지'}되었습니다.`);
+                // 페이지 새로고침 (또는 상태 업데이트 로직)
+                window.location.reload(); 
+            } else {
+                const err = await response.json();
+                alert(`변경 실패: ${err.detail}`);
+            }
+        } catch (error) {
+            console.error(error);
+            alert("서버 통신 오류");
+        }
+    };
+
   return (
     <>
       <PartyFormModal 
@@ -241,6 +269,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ parties, clothingItems, users, on
               onDelete={handleDeleteParty} 
               onManageParticipants={handleManageParticipants}
               onUpdateApprovalStatus={onUpdatePartyApprovalStatus}
+              onToggleActive={handleTogglePartyActive}
           />
         </div>
 

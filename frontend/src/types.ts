@@ -167,6 +167,7 @@ export interface Party {
         itemsPerPerson: number;
         cost: number;
     }
+    isActive: boolean; // [추가] 교환 가능 상태
 }
 
 
