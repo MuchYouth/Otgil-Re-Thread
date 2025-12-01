@@ -148,6 +148,7 @@ class GoodbyeTag(Base):
     __tablename__ = 'goodbye_tags'
     
     # 1:1 관계를 위해 ClothingItem의 ID를 PK/FK로 사용
+    id = Column(String, primary_key=True, index=True)
     clothing_item_id = Column(String, ForeignKey('clothing_items.id'), primary_key=True)
     
     met_when = Column(String)
@@ -165,6 +166,7 @@ class HelloTag(Base):
     __tablename__ = 'hello_tags'
     
     # 1:1 관계를 위해 ClothingItem의 ID를 PK/FK로 사용
+    id = Column(String, primary_key=True, index=True)
     clothing_item_id = Column(String, ForeignKey('clothing_items.id'), primary_key=True)
 
     received_from = Column(String)
@@ -311,6 +313,7 @@ class Party(Base):
     # `details: string[]`는 JSON 타입을 사용하는 것이 유연합니다. (PostgreSQL의 ARRAY(String)도 가능)
     details = Column(JSON, nullable=True) 
     status = Column(DBEnum(PartyStatusEnum), nullable=False, default=PartyStatusEnum.PENDING_APPROVAL)
+    is_active = Column(Boolean, default=False)
     invitation_code = Column(String, unique=True, nullable=False)
     
     # Foreign Key

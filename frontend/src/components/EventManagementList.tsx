@@ -8,9 +8,10 @@ interface PartyManagementListProps {
   onDelete: (id: string) => void;
   onManageParticipants: (party: Party) => void;
   onUpdateApprovalStatus: (partyId: string, newStatus: 'UPCOMING' | 'REJECTED') => void;
+  onToggleActive: (partyId: string, isActive: boolean) => void;
 }
 
-const PartyManagementList: React.FC<PartyManagementListProps> = ({ parties, onAdd, onEdit, onDelete, onManageParticipants, onUpdateApprovalStatus }) => {
+const PartyManagementList: React.FC<PartyManagementListProps> = ({ parties, onAdd, onEdit, onDelete, onManageParticipants, onUpdateApprovalStatus , onToggleActive }) => {
   return (
     <div className="bg-white p-6 rounded-xl shadow-lg">
       <div className="flex justify-between items-center mb-4">
@@ -69,6 +70,16 @@ const PartyManagementList: React.FC<PartyManagementListProps> = ({ parties, onAd
                             <button onClick={() => onManageParticipants(party)} className="font-medium text-green-600 hover:underline">참가자</button>
                             <button onClick={() => onEdit(party)} className="font-medium text-blue-600 hover:underline">수정</button>
                             <button onClick={() => onDelete(party.id)} className="font-medium text-red-600 hover:underline">삭제</button>
+                            <button 
+                                onClick={() => onToggleActive(party.id, !party.isActive)}
+                                className={`font-bold px-3 py-1 rounded-full text-xs ${
+                                    party.isActive 
+                                    ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                                    : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                }`}
+                            >
+                                {party.isActive ? '교환 중지' : '교환 시작'}
+                            </button>
                         </>
                     )}
                   </td>

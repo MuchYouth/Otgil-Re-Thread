@@ -34,11 +34,11 @@ const MOCK_DAILY_EXCHANGES: DailyActivity[] = [
 ];
 
 const MOCK_CATEGORY_DISTRIBUTION: CategoryDistribution[] = [
-    { category: 'T-SHIRT', count: 1890 },
-    { category: 'JEANS', count: 1240 },
-    { category: 'DRESS', count: 980 },
-    { category: 'JACKET', count: 1530 },
-    { category: 'ACCESSORY', count: 231 },
+    { category: '티셔츠', count: 1890 },
+    { category: '바지', count: 1240 },
+    { category: '드레스', count: 980 },
+    { category: '자켓', count: 1530 },
+    { category: '악세서리', count: 231 },
 ];
 
 interface AdminPageProps {
@@ -178,6 +178,34 @@ const AdminPage: React.FC<AdminPageProps> = ({ parties, clothingItems, users, on
         setIsParticipantModalOpen(true);
     };
 
+    // ▼▼▼ [추가] 교환 활성화/비활성화 토글 함수 ▼▼▼
+    const handleTogglePartyActive = async (partyId: string, isActive: boolean) => {
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+
+        try {
+            // API 호출: PATCH /parties/{id}/toggle-active?active={true/false}
+            const response = await fetch(`http://localhost:8000/parties/${partyId}/toggle-active?active=${isActive}`, {
+                method: "PATCH",
+                headers: { 
+                    "Authorization": `Bearer ${token}` 
+                }
+            });
+
+            if (response.ok) {
+                alert(`파티 교환이 ${isActive ? '시작' : '중지'}되었습니다.`);
+                // 페이지 새로고침 (또는 상태 업데이트 로직)
+                window.location.reload(); 
+            } else {
+                const err = await response.json();
+                alert(`변경 실패: ${err.detail}`);
+            }
+        } catch (error) {
+            console.error(error);
+            alert("서버 통신 오류");
+        }
+    };
+
   return (
     <>
       <PartyFormModal 
@@ -241,6 +269,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ parties, clothingItems, users, on
               onDelete={handleDeleteParty} 
               onManageParticipants={handleManageParticipants}
               onUpdateApprovalStatus={onUpdatePartyApprovalStatus}
+              onToggleActive={handleTogglePartyActive}
           />
         </div>
 

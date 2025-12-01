@@ -15,6 +15,9 @@ from app.schemas import (
 from app.models import User
 from app.api.deps import get_db, get_current_user, get_current_admin_user
 from app.crud import party as crud_party
+from app.crud import item as crud_item
+from app import schemas, models
+from app.api import deps
 
 router = APIRouter()
 
@@ -310,3 +313,46 @@ def check_in(
          raise HTTPException(status_code=404, detail="참가자 명단에 없거나 신청하지 않은 유저입니다.")
          
     return updated_participation
+
+# backend/app/api/routers/parties.py
+
+@router.get("/{party_id}/items", response_model=List[schemas.ClothingItemResponse])
+def read_party_lineup(party_id: str, db: Session = Depends(get_db)):
+    items = crud_party.get_party_items(db, party_id=party_id)
+    
+    if not items:
+        return []
+    
+    for item in items:
+        # 1. DB 모델에 있는 user_id 가져오기
+        # (models.py에 user_id라고 적혀있다고 가정)
+        current_user_id = item.user_id 
+        
+        # 2. 닉네임 찾기
+        if current_user_id:
+            user = db.query(User).filter(User.id == current_user_id).first()
+            item.user_nickname = user.nickname if user else "알 수 없음"
+        else:
+            item.user_nickname = "정보 없음"
+
+    return items
+
+# [13] 관리자: 파티 교환 활성화/비활성화 토글
+@router.patch("/{party_id}/toggle-active")
+def toggle_party_active(
+    party_id: str,
+    active: bool, # true면 시작, false면 중지
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(deps.get_current_user)
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    party = crud_party.get_party(db, party_id=party_id)
+    if not party:
+        raise HTTPException(status_code=404, detail="Party not found")
+        
+    party.is_active = active
+    db.commit()
+    db.refresh(party)
+    return party

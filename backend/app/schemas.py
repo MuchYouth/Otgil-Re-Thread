@@ -74,39 +74,48 @@ class HelloTagResponse(HelloTagBase):
 
 # --- ClothingItem Schemas ---
 
+# [Base] 공통 필드 (ID 없음)
 class ClothingItemBase(BaseModel):
     name: str
     description: str
-    category: ClothingCategoryEnum
+    category: str
     size: str
     image_url: str
 
+# [Create] 생성할 때 (ID 없음 -> Base 상속)
 class ClothingItemCreate(ClothingItemBase):
     pass
 
+# [Update] 수정할 때 (모든 필드 Optional)
 class ClothingItemUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    category: Optional[ClothingCategoryEnum] = None
+    category: Optional[str] = None
     size: Optional[str] = None
     image_url: Optional[str] = None
     is_listed_for_exchange: Optional[bool] = None
-
-class ClothingItemResponse(ClothingItemBase):
-    id: str
-    user_id: str
-    user_nickname: str
-    is_listed_for_exchange: bool
-    party_submission_status: Optional[PartySubmissionStatusEnum] = None
     submitted_party_id: Optional[str] = None
+    party_submission_status: Optional[str] = None
+
+# [Response] 조회할 때 (ID 필수! + DB 정보 포함)
+# ★★★ 여기가 바로 ClothingItemResponse 입니다 ★★★
+class ClothingItemResponse(ClothingItemBase):
+    id: str  # 필수
+    user_id: str # 필수
+    user_nickname: Optional[str] = None
     
-    goodbye_tag: Optional[GoodbyeTagResponse] = None
+    is_listed_for_exchange: bool = False
+    submitted_party_id: Optional[str] = None
+    party_submission_status: Optional[str] = None
+    
     hello_tag: Optional[HelloTagResponse] = None
+    goodbye_tag: Optional[GoodbyeTagResponse] = None
 
     class Config:
         from_attributes = True
 
-
+# (혹시 몰라 ClothingItem이라는 이름으로도 참조 가능하게 별칭 추가)
+ClothingItem = ClothingItemResponse
 # --- User Schemas ---
 
 class UserBase(BaseModel):
@@ -392,6 +401,7 @@ class PartyBase(BaseModel):
     location: str
     image_url: str
     details: List[str]
+    is_active: bool = False  # 교환 가능 상태 여부
 
 class PartyCreate(PartyBase):
     pass
@@ -419,6 +429,10 @@ class PartyResponse(PartyBase):
 
     class Config:
         from_attributes = True
+
+# [추가] 아이템 교환 요청용 스키마
+class ItemExchangeRequest(BaseModel):
+    hello_tag: HelloTagBase  # 교환 시 작성할 헬로 태그 정보
 
 
 # --- Admin Schemas (Read-only) ---
@@ -498,3 +512,4 @@ class Post(PostBase):
 
     class Config:
         from_attributes = True  # SQLAlchemy 모델에서 속성 읽어오기
+

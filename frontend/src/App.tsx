@@ -133,7 +133,8 @@ const MOCK_PARTIES: Party[] = [
             { userId: 'user1', nickname: 'EcoFashionista', status: 'ACCEPTED' },
             { userId: 'user2', nickname: '해삐영', status: 'ACCEPTED' },
         ],
-        kitDetails: { participants: 15, itemsPerPerson: 5, cost: 80000 }
+        kitDetails: { participants: 15, itemsPerPerson: 5, cost: 80000 },
+        isActive: true
     },
     { 
         id: 'party2', 
@@ -150,7 +151,8 @@ const MOCK_PARTIES: Party[] = [
             { userId: 'user1', nickname: 'EcoFashionista', status: 'PENDING' },
             { userId: 'user3', nickname: 'StyleSeeker', status: 'PENDING' },
         ],
-        kitDetails: { participants: 20, itemsPerPerson: 3, cost: 95000 }
+        kitDetails: { participants: 20, itemsPerPerson: 3, cost: 95000 },
+        isActive: true
     },
     { 
         id: 'party3', 
@@ -168,7 +170,8 @@ const MOCK_PARTIES: Party[] = [
             { userId: 'user2', nickname: '해삐영', status: 'REJECTED' },
         ],
         impact: { itemsExchanged: 50, waterSaved: 135000, co2Reduced: 275 },
-        kitDetails: { participants: 10, itemsPerPerson: 5, cost: 70000 }
+        kitDetails: { participants: 10, itemsPerPerson: 5, cost: 70000 },
+        isActive: false
     }
 ];
 
@@ -371,7 +374,8 @@ const App: React.FC = () => {
                     participants: p.kit_participants,
                     itemsPerPerson: p.kit_items_per_person,
                     cost: p.kit_cost
-                } : undefined
+                } : undefined,
+                isActive: p.is_active
             }));
 
             // 중복 제거 (API 호출이 여러번이라 중복될 수 있음)
@@ -645,47 +649,150 @@ const App: React.FC = () => {
         setRewards(prev => [...prev, newReward]);
         alert('새로운 바우처가 등록되었습니다.');
     };
-    // [수정] 아이템 등록 시 크레딧 적립
+    
+    // [수정] 아이템 등록 핸들러 (URL 수정 + 태그 변수명 변환 적용)
     const handleItemAdd = async (itemInfo: any, options: any) => {
+        // 1. 로그인 확인
         if (!currentUser) {
-            alert("Login is required.");
+            alert("로그인이 필요합니다.");
             setPage(Page.LOGIN);
             return;
         }
+        
         const token = localStorage.getItem('access_token');
-        if (!token) return;
+        if (!token) {
+            alert("인증 정보가 없습니다. 다시 로그인해주세요.");
+            setPage(Page.LOGIN);
+            return;
+        }
 
         try {
-            // 1. 아이템 등록 API 호출 (생략 - 기존 코드와 동일)
+            // ---------------------------------------------------------
+            // [Step 1] 아이템 등록
+            // ---------------------------------------------------------
             const itemPayload = {
                 name: itemInfo.name,
                 description: itemInfo.description,
                 category: itemInfo.category,
                 size: itemInfo.size,
-                image_url: itemInfo.imageUrl
+                image_url: itemInfo.imageUrl // 백엔드는 image_url을 원함
             };
-            const createRes = await fetch("http://localhost:8000/items/add", {
+
+            // https://www.wordreference.com/koen/%ED%99%95%EC%9D%B8 /items/add 가 맞습니다.
+            const createRes = await fetch("http://localhost:8000/items/add", { 
                 method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                headers: { 
+                    "Content-Type": "application/json", 
+                    "Authorization": `Bearer ${token}` 
+                },
                 body: JSON.stringify(itemPayload)
             });
-            if (!createRes.ok) throw new Error("아이템 등록 실패");
+
+            if (!createRes.ok) {
+                 if (createRes.status === 401) throw new Error("로그인 세션이 만료되었습니다.");
+                 const errData = await createRes.json();
+                 console.error("아이템 등록 에러 상세:", errData); // 콘솔에도 출력
+                 
+                 // 에러 메시지가 배열인 경우(422)와 일반 문자열인 경우를 구분해서 보여줌
+                 const errorMessage = Array.isArray(errData.detail) 
+                    ? errData.detail.map((e: any) => `${e.loc.join('.')} -> ${e.msg}`).join('\n') 
+                    : errData.detail;
+
+                 throw new Error(`아이템 등록 실패:\n${errorMessage}`);
+            }
+
             const createdItem = await createRes.json();
             const itemId = createdItem.id;
 
-            // 2. 태그 API 호출 (생략 - 기존 코드와 동일)
-            if (options.goodbyeTag) { /* ... */ }
-            if (options.helloTag) { /* ... */ }
+            // ---------------------------------------------------------
+            // [Step 2] 태그 등록 (변수명 변환 필수!)
+            // ---------------------------------------------------------
+            const tagHeaders = {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            };
 
+            // 1) Goodbye 태그가 있는 경우
+            if (options.goodbyeTag) {
+                // ▼▼▼ [핵심] 프론트엔드(camelCase) -> 백엔드(snake_case) 변환 ▼▼▼
+                const goodbyePayload = {
+                    clothing_item_id: itemId,
+                    met_when: options.goodbyeTag.metWhen,
+                    met_where: options.goodbyeTag.metWhere,
+                    why_got: options.goodbyeTag.whyGot,
+                    worn_count: Number(options.goodbyeTag.wornCount),
+                    why_let_go: options.goodbyeTag.whyLetGo,
+                    final_message: options.goodbyeTag.finalMessage,
+                };
+                // ▲▲▲ -------------------------------------------------- ▲▲▲
 
+                // 파티 출품이 선택된 경우
+                if (options.selectedPartyId) {
+                     await fetch(`http://localhost:8000/items/modify/${itemId}`, {
+                        method: "PATCH",
+                        headers: tagHeaders,
+                        body: JSON.stringify({ 
+                            submitted_party_id: options.selectedPartyId,
+                            party_submission_status: 'PENDING'
+                        })
+                    });
+                }
+
+                // 태그 전송
+                const tagRes = await fetch(`http://localhost:8000/tags/goodbye`, {
+                    method: "POST",
+                    headers: tagHeaders,
+                    body: JSON.stringify(goodbyePayload)
+                });
+                
+                if (!tagRes.ok) {
+                    const err = await tagRes.json();
+                    console.error("Goodbye 태그 등록 실패:", err);
+                    alert(`태그 등록 중 오류가 발생했습니다: ${JSON.stringify(err.detail)}`);
+                }
+            }
+
+            // 2) Hello 태그가 있는 경우
+            if (options.helloTag) {
+                // ▼▼▼ [핵심] 프론트엔드(camelCase) -> 백엔드(snake_case) 변환 ▼▼▼
+                const helloPayload = {
+                    clothing_item_id: itemId,
+                    received_from: options.helloTag.receivedFrom,
+                    received_at: options.helloTag.receivedAt,
+                    first_impression: options.helloTag.firstImpression,
+                    hello_message: options.helloTag.helloMessage
+                };
+                // ▲▲▲ -------------------------------------------------- ▲▲▲
+
+                const tagRes = await fetch(`http://localhost:8000/tags/hello`, {
+                    method: "POST",
+                    headers: tagHeaders,
+                    body: JSON.stringify(helloPayload)
+                });
+                
+                if (!tagRes.ok) {
+                    const err = await tagRes.json();
+                    console.error("Hello 태그 등록 실패:", err);
+                    alert(`태그 등록 중 오류가 발생했습니다: ${JSON.stringify(err.detail)}`);
+                }
+            }
+
+            // ---------------------------------------------------------
+            // [Step 3] 마무리
+            // ---------------------------------------------------------
             alert('아이템이 성공적으로 등록되었습니다!');
-            fetchClothingItems();
+            fetchClothingItems(); 
             setPage(Page.MY_PAGE);
 
         } catch (error: any) {
+            console.error("Upload Error:", error);
             alert(`오류 발생: ${error.message}`);
+            if (error.message.includes("세션") || error.message.includes("401")) {
+                 setPage(Page.LOGIN);
+            }
         }
     };
+
     const handleToggleListing = async (itemId: string) => {
         if (!currentUser) return;
         const token = localStorage.getItem('access_token');
@@ -1156,32 +1263,36 @@ const App: React.FC = () => {
     };
 
     const handleUpdatePartyItemStatus = async (itemId: string, status: 'APPROVED' | 'REJECTED') => {
-        if (!currentUser?.isAdmin) return;
+        // 1. 관리자 권한 체크
+        if (!currentUser?.isAdmin) {
+            alert("관리자 권한이 필요합니다.");
+            return;
+        }
+        
+        // 2. 토큰 가져오기
         const token = localStorage.getItem('access_token');
         if (!token) return;
 
         try {
-            // Admin API 호출 (기존에 만들어둔 API 활용)
-            const response = await fetch(`http://localhost:8000/items/${itemId}/approve?status=${status}`, { // URL 수정 필요할 수 있음 (라우터 확인)
-                // 백엔드 라우터: @router.post("/items/{item_id}/approve") -> 내부적으로 status="APPROVED" 고정이었음.
-                // 반려(REJECTED)를 위해서는 백엔드 수정이 필요하거나, 
-                // items.py의 @router.put("/submission_status/{item_id}")를 사용해야 함.
-                // 여기서는 items.py에 있는 update_item_submission_status_admin 사용
-            });
-            
-            // items.py의 update_item_submission_status_admin 사용
-            const res = await fetch(`http://localhost:8000/items/submission_status/${itemId}?status_in=${status}`, {
+            // 3. 백엔드 API 호출 (PUT /items/submission_status/{id})
+            const response = await fetch(`http://localhost:8000/items/submission_status/${itemId}?status_in=${status}`, {
                 method: "PUT",
-                headers: { "Authorization": `Bearer ${token}` }
+                headers: { 
+                    "Authorization": `Bearer ${token}` 
+                }
             });
 
-            if (res.ok) {
+            if (response.ok) {
+                alert(`아이템이 ${status === 'APPROVED' ? '승인' : '반려'} 처리되었습니다.`);
+                // 4. 목록 새로고침 (화면에 즉시 반영됨)
                 fetchClothingItems();
             } else {
-                alert("상태 변경 실패");
+                const err = await response.json();
+                alert(`처리 실패: ${err.detail}`);
             }
         } catch (error) {
             console.error("Error updating item status:", error);
+            alert("서버 통신 중 오류가 발생했습니다.");
         }
     };
     // credit handler
@@ -1321,7 +1432,7 @@ const App: React.FC = () => {
             case Page.LOGIN: return <LoginPage onLogin={handleLogin} setPage={setPage} />;
             case Page.SIGNUP: return <SignUpPage onSignUp={handleSignUp} setPage={setPage} />;
             case Page.MY_PAGE:
-                return currentUser ? <MyPage user={currentUser} allUsers={users} onToggleNeighbor={handleToggleNeighbor} stats={userImpactStats} clothingItems={clothingItems.filter(item => item.userId === currentUser.id)} credits={userCredits} parties={parties} onToggleListing={handleToggleListing} onSelectHostedParty={handleSelectParty} setPage={setPage} onPartySubmit={handlePartySubmit} onCancelPartySubmit={handleCancelPartySubmit} onOffsetCredit={handleOffsetCredit} acceptedUpcomingParties={acceptedUpcomingPartiesForUser} /> : <LoginPage onLogin={handleLogin} setPage={setPage} />;
+                return currentUser ? <MyPage user={currentUser} allUsers={users} onToggleNeighbor={handleToggleNeighbor} stats={userImpactStats} clothingItems={clothingItems.filter(item => item.userId === currentUser.id)} credits={userCredits} parties={parties} onToggleListing={handleToggleListing} onSelectHostedParty={handleSelectParty} setPage={setPage} onPartySubmit={handlePartySubmit} onCancelPartySubmit={handleCancelPartySubmit} onDeleteItem={handleDeleteItem} onOffsetCredit={handleOffsetCredit} acceptedUpcomingParties={acceptedUpcomingPartiesForUser} /> : <LoginPage onLogin={handleLogin} setPage={setPage} />;
             case Page.STORY_DETAIL:
                 const story = stories.find(s => s.id === selectedStoryId);
                 const storyComments = comments.filter(c => c.storyId === selectedStoryId);
@@ -1350,7 +1461,7 @@ const App: React.FC = () => {
 
             // [수정] API 데이터 전달
             case Page.TWENTY_ONE_PERCENT_PARTY:
-                return <TwentyOnePercentPartyPage parties={parties} items={clothingItems} currentUser={currentUser} onPartyApply={handlePartyApplication} setPage={setPage} />;
+                return <TwentyOnePercentPartyPage parties={parties} items={clothingItems} currentUser={currentUser} onPartyApply={handlePartyApplication} onExchangeComplete={fetchClothingItems} setPage={setPage} />;
             
             // [수정] 핸들러 전달
             case Page.PARTY_HOSTING:
@@ -1381,8 +1492,45 @@ const App: React.FC = () => {
                     onUpdateParticipantStatus={handleUpdateParticipantStatus}
                     onUpdatePartyItemStatus={handleUpdatePartyItemStatus}
                     onUpdatePartyApprovalStatus={handleUpdatePartyApprovalStatus}
+                    onDeleteItem={handleDeleteItem}
                 /> : <HomePage setPage={setPage} />;
             default: return <HomePage setPage={setPage} />;
+        }
+    };
+
+    const handleDeleteItem = async (itemId: string) => {
+        if (!currentUser) return;
+        
+        // 1. 사용자 확인
+        if (!window.confirm("정말로 이 옷을 삭제하시겠습니까? 복구할 수 없습니다.")) {
+            return;
+        }
+
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+
+        try {
+            // 2. 백엔드 API 호출 (DELETE /items/delete/{id})
+            // 백엔드 라우터 설정을 따름 (prefix가 /items라고 가정)
+            const response = await fetch(`http://localhost:8000/items/delete/${itemId}`, {
+                method: "DELETE",
+                headers: { 
+                    "Authorization": `Bearer ${token}` 
+                }
+            });
+
+            if (response.ok) {
+                // 204 No Content 성공 시
+                alert("옷이 삭제되었습니다.");
+                fetchClothingItems(); // 목록 새로고침 (중요!)
+            } else {
+                // 에러 처리
+                const err = await response.json(); // 혹시 에러 메시지가 있다면
+                alert(`삭제 실패: ${err.detail || '권한이 없거나 오류가 발생했습니다.'}`);
+            }
+        } catch (error) {
+            console.error("Error deleting item:", error);
+            alert("서버 통신 오류가 발생했습니다.");
         }
     };
 
