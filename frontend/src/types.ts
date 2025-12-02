@@ -41,6 +41,12 @@ export interface ClothingItem {
   isListedForExchange: boolean;
   partySubmissionStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
   submittedPartyId?: string;
+  environmental_burden_score?: number;
+  material_type?: MeterialCategory;
+  credit_amount?: number;
+  weight_kg?: number;
+  waterSaved?: number;
+  co2Reduced?: number;
   goodbyeTag?: GoodbyeTag;
   helloTag?: HelloTag;
 }

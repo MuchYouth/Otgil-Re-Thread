@@ -130,6 +130,9 @@ class ClothingItemResponse(ClothingItemBase):
     
     class Config:
         from_attributes = True
+        json_encoders = {
+            Decimal: lambda v: float(v)
+        }
 # (혹시 몰라 ClothingItem이라는 이름으로도 참조 가능하게 별칭 추가)
 ClothingItem = ClothingItemResponse
 # --- User Schemas ---
