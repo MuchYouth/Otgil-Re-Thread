@@ -297,7 +297,7 @@ def exchange_item(
         if party and not party.is_active:
              raise HTTPException(status_code=400, detail="This party is not active for exchange yet.")
 
-    EXCHANGE_REWARD = 1000
+    EXCHANGE_REWARD = item.credit_amount
     previous_owner_id = item.user_id
 
     # [수정] 구매자 차감 로직 삭제됨

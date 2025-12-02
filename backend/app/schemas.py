@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, field_validator, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from pydantic import BaseModel, computed_field
 import datetime
 import enum
@@ -128,6 +128,8 @@ class ClothingItemResponse(ClothingItemBase):
     # 기본값이 있는 필드 (DB와 Pydantic 모두에 명시되어야 함)
     is_listed_for_exchange: bool = False
     
+    party_submission_status: Optional[PartySubmissionStatusEnum] = None
+    submitted_party_id: Optional[str] = None
     class Config:
         from_attributes = True
         json_encoders = {
