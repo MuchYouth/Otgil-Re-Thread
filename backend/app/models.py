@@ -1,6 +1,6 @@
 # SQL Alchemy 데이터 베이스 모델 
 import enum
-from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, Date, DateTime, ForeignKey, Table, Enum as DBEnum, JSON
+from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, Date, DateTime, ForeignKey,Numeric, Table, Enum as DBEnum, JSON
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.sql import func
 import datetime
@@ -24,6 +24,19 @@ class PartySubmissionStatusEnum(enum.Enum):
     APPROVED = 'APPROVED'
     REJECTED = 'REJECTED'
 
+# 환경 임팩트 계산을 위한 의류 소재 타입
+class MaterialTypeEnum(str, enum.Enum):
+    COTTON = "Cotton"
+    POLYESTER = "Polyester"
+    NYLON = "Nylon"
+    WOOL = "Wool"
+    VISCOSE = "Viscose"
+    LINEN = "Linen"
+    SILK = "Silk"
+    ACRYLIC = "Acrylic"
+    LYOCELL = "Lyocell"
+    MODAL = "Modal"
+    OTHER = "Other"
 # TypeScript: export type CreditType = 'EARNED_CLOTHING' | 'EARNED_EVENT' | 'SPENT_REWARD' | 'SPENT_OFFSET' | 'SPENT_MAKER_PURCHASE';
 class CreditTypeEnum(enum.Enum):
     EARNED_CLOTHING = 'EARNED_CLOTHING'
@@ -127,6 +140,40 @@ class ClothingItem(Base):
     user_nickname = Column(String, nullable=False) # TS 모델에 포함되어 있어 추가
     is_listed_for_exchange = Column(Boolean, default=False, nullable=False)
     party_submission_status = Column(DBEnum(PartySubmissionStatusEnum), nullable=True)
+    credit_amount = Column(Integer, nullable=False, comment="아이템 등록 시 계산된 최종 크레딧 지급액")
+    weight_kg = Column(
+        Numeric(precision=10, scale=4), 
+        nullable=False, 
+        comment="아이템의 무게 (kg)"
+    )
+    # 1. 소재 (Material) 정보: 환경 부하 계산의 기본 데이터
+    material_type = Column(
+        DBEnum(MaterialTypeEnum), 
+        nullable=False, 
+        comment="의류의 주 소재 (예: Cotton, Polyester)"
+    )
+    
+    # 2. 환경 부하 크래딧 점수 (OL Score): 아이템의 초기 환경 부하 가치
+    # Numeric 타입으로 소수점 관리에 유리하며, Precision은 10자리, Scale은 소수점 4자리까지 허용한다고 가정
+    environmental_burden_score = Column(
+        Numeric(precision=10, scale=4), 
+        nullable=False, 
+        comment="아이템 등록 시 계산된 환경 부하 크래딧 값 (OL)"
+    )
+    
+    # 3. 절감된 탄소 배출량 (Carbon Saved)
+    carbon_saved = Column(
+        Numeric(precision=10, scale=4),
+        nullable=False,
+        comment="새 제품 생산을 막아 절감된 탄소 배출량 (kg CO2e)"
+    )
+    
+    # 4. 절감된 물 사용량 (Water Saved)
+    water_saved = Column(
+        Numeric(precision=10, scale=4),
+        nullable=False,
+        comment="새 제품 생산을 막아 절감된 물 사용량 (L)"
+    )
     
     # Foreign Keys
     user_id = Column(String, ForeignKey('users.id'), nullable=False)

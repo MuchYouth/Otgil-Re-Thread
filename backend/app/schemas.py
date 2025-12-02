@@ -84,7 +84,8 @@ class ClothingItemBase(BaseModel):
 
 # [Create] 생성할 때 (ID 없음 -> Base 상속)
 class ClothingItemCreate(ClothingItemBase):
-    pass
+    weight_kg: float
+    material_type: str
 
 # [Update] 수정할 때 (모든 필드 Optional)
 class ClothingItemUpdate(BaseModel):
