@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Page, User, ClothingItem, ImpactStats, Story, Credit, Reward, PerformanceReport, Comment, Party, Maker, MakerProduct, PartyParticipantStatus, GoodbyeTag, HelloTag, ClothingCategory } from './types';
+import { Page, User, ClothingItem, ImpactStats, Story, Credit, Reward, PerformanceReport, Comment, Party, Maker, MakerProduct, PartyParticipantStatus, GoodbyeTag, HelloTag, ClothingCategory, MeterialCategory } from './types';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import HomePage from './pages/HomePage';
@@ -675,7 +675,10 @@ const App: React.FC = () => {
                 description: itemInfo.description,
                 category: itemInfo.category,
                 size: itemInfo.size,
-                image_url: itemInfo.imageUrl // 백엔드는 image_url을 원함
+                image_url: itemInfo.imageUrl, // 백엔드는 image_url을 원함
+                weight_kg: itemInfo.weight_kg,
+                material_type: itemInfo.material_type
+
             };
 
             // https://www.wordreference.com/koen/%ED%99%95%EC%9D%B8 /items/add 가 맞습니다.

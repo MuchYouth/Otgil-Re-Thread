@@ -1,5 +1,18 @@
 export type ClothingCategory = '티셔츠' | '바지' | '드레스' | '자켓'| '악세서리';
 
+export type MeterialCategory =
+  | 'Cotton(면)'
+  | 'Polyester(폴리에스터)'
+  | 'Nylon(나일론)'
+  | 'Wool(울)'
+  | 'Viscose(비스코스)'
+  | 'Linen(린넨)'
+  | 'Silk(실크)'
+  | 'Acrylic(아크릴)'
+  | 'Lyocell(라이오셀)'
+  | 'Modal(모달)'
+  | 'Other(기타)';
+
 export interface GoodbyeTag {
   metWhen: string;
   metWhere: string;

@@ -26,17 +26,17 @@ class PartySubmissionStatusEnum(enum.Enum):
 
 # 환경 임팩트 계산을 위한 의류 소재 타입
 class MaterialTypeEnum(str, enum.Enum):
-    COTTON = "Cotton"
-    POLYESTER = "Polyester"
-    NYLON = "Nylon"
-    WOOL = "Wool"
-    VISCOSE = "Viscose"
-    LINEN = "Linen"
-    SILK = "Silk"
-    ACRYLIC = "Acrylic"
-    LYOCELL = "Lyocell"
-    MODAL = "Modal"
-    OTHER = "Other"
+    Cotton = "Cotton"
+    Polyester = "Polyester"
+    Nylon = "Nylon"
+    Wool = "Wool"
+    Viscose = "Viscose"
+    Linen = "Linen"
+    Silk = "Silk"
+    Acrylic = "Acrylic"
+    Lyocell = "Lyocell"
+    Modal = "Modal"
+    Other = "Other"
 # TypeScript: export type CreditType = 'EARNED_CLOTHING' | 'EARNED_EVENT' | 'SPENT_REWARD' | 'SPENT_OFFSET' | 'SPENT_MAKER_PURCHASE';
 class CreditTypeEnum(enum.Enum):
     EARNED_CLOTHING = 'EARNED_CLOTHING'
