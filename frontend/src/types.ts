@@ -1,5 +1,18 @@
 export type ClothingCategory = '티셔츠' | '바지' | '드레스' | '자켓'| '악세서리';
 
+export type MeterialCategory =
+  | 'Cotton(면)'
+  | 'Polyester(폴리에스터)'
+  | 'Nylon(나일론)'
+  | 'Wool(울)'
+  | 'Viscose(비스코스)'
+  | 'Linen(린넨)'
+  | 'Silk(실크)'
+  | 'Acrylic(아크릴)'
+  | 'Lyocell(라이오셀)'
+  | 'Modal(모달)'
+  | 'Other(기타)';
+
 export interface GoodbyeTag {
   metWhen: string;
   metWhere: string;
@@ -28,6 +41,12 @@ export interface ClothingItem {
   isListedForExchange: boolean;
   partySubmissionStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
   submittedPartyId?: string;
+  environmental_burden_score?: number;
+  material_type?: MeterialCategory;
+  credit_amount?: number;
+  weight_kg?: number;
+  waterSaved?: number;
+  co2Reduced?: number;
   goodbyeTag?: GoodbyeTag;
   helloTag?: HelloTag;
 }
@@ -167,6 +186,7 @@ export interface Party {
         itemsPerPerson: number;
         cost: number;
     }
+    isActive: boolean; // [추가] 교환 가능 상태
 }
 
 

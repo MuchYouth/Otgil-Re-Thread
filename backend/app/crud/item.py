@@ -4,6 +4,7 @@ from typing import List
 
 from app.models import ClothingItem, PartySubmissionStatusEnum, GoodbyeTag, HelloTag
 from app.schemas import ClothingItemCreate, ClothingItemUpdate, GoodbyeTagCreate, HelloTagCreate
+from app import models
 
 def get_item(db: Session, item_id: str) -> ClothingItem | None:
     """ID로 단일 아이템을 조회합니다."""
@@ -53,6 +54,24 @@ def create_user_item(db: Session, item: ClothingItemCreate, user_id: str, user_n
         user_id=user_id,
         user_nickname=user_nickname
     )
+     # 3. 환경 부하 지표 계산
+    try:
+        impact_results = calculate_environmental_impact(db_item)
+    except Exception as e:
+        # 계산 실패 시 로깅 또는 예외 처리 필요
+        print(f"Error calculating environmental impact: {e}")
+        # 기본값으로 설정하고 진행하거나, 등록을 거부할 수 있음 (여기서는 기본값 0으로 설정)
+        impact_results = {
+            "co2Reduced": 0.0,
+            "waterSaved": 0.0,
+            "environmental_burden_score": 0.0,
+            "credit_amount": 0
+        }
+    # 4. 계산된 값을 DB 모델에 업데이트
+    db_item.carbon_saved = impact_results["co2Reduced"]
+    db_item.water_saved = impact_results["waterSaved"]
+    db_item.environmental_burden_score = impact_results["environmental_burden_score"]
+    db_item.credit_amount = impact_results["creditAmount"]
     
     db.add(db_item)
     db.commit()

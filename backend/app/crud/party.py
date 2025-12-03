@@ -5,16 +5,17 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, desc, asc
 from typing import List, Optional
 
-from app.models import Party, PartyParticipation, User, PartyStatusEnum, PartyParticipantStatusEnum
+# [핵심 수정 1] models를 통째로 import 하여 스키마와 이름 충돌 방지
+from app import models 
 from app.schemas import PartyCreate, PartyUpdate
 
 # --------------------------------------------------------------------------
 # 조회 (Read)
 # --------------------------------------------------------------------------
 
-def get_party(db: Session, party_id: str) -> Party | None:
+def get_party(db: Session, party_id: str) -> models.Party | None:
     """ID로 단일 파티를 조회합니다."""
-    return db.query(Party).filter(Party.id == party_id).first()
+    return db.query(models.Party).filter(models.Party.id == party_id).first()
 
 def get_parties(
     db: Session, 
@@ -22,71 +23,75 @@ def get_parties(
     limit: int = 100, 
     status: Optional[str] = None, 
     search: Optional[str] = None
-) -> List[Party]:
+) -> List[models.Party]:
     """
     파티 목록을 조회합니다. 
     상태(status) 필터링과 검색(search) 기능을 포함합니다.
     """
-    query = db.query(Party)
+    query = db.query(models.Party)
 
     # 1. 상태 필터링
     if status:
         # Enum 값이 들어올 수도 있고 문자열이 들어올 수도 있으므로 처리
-        if isinstance(status, PartyStatusEnum):
-            query = query.filter(Party.status == status)
+        if isinstance(status, models.PartyStatusEnum):
+            query = query.filter(models.Party.status == status)
         else:
-            query = query.filter(Party.status == status)
+            query = query.filter(models.Party.status == status)
 
     # 2. 검색 (제목 또는 설명)
     if search:
         search_pattern = f"%{search}%"
         query = query.filter(
             or_(
-                Party.title.like(search_pattern),
-                Party.description.like(search_pattern)
+                models.Party.title.like(search_pattern),
+                models.Party.description.like(search_pattern)
             )
         )
 
     # 날짜순 정렬 (가까운 날짜 먼저)
-    return query.order_by(Party.date.asc()).offset(skip).limit(limit).all()
+    return query.order_by(models.Party.date.asc()).offset(skip).limit(limit).all()
 
-def get_party_by_invitation_code(db: Session, code: str) -> Party | None:
+def get_party_by_invitation_code(db: Session, code: str) -> models.Party | None:
     """초대 코드로 파티를 조회합니다."""
-    return db.query(Party).filter(Party.invitation_code == code).first()
+    return db.query(models.Party).filter(models.Party.invitation_code == code).first()
 
-def get_parties_for_user(db: Session, user_id: str) -> List[Party]:
+def get_parties_for_user(db: Session, user_id: str) -> List[models.Party]:
     """
     사용자가 호스팅 중이거나 참가 중인 모든 파티를 조회합니다.
     """
-    # 1. 내가 호스트인 파티
-    # 2. 내가 참가자(PartyParticipation)로 등록된 파티
-    # 이 두 가지 조건을 OR로 묶어서 조회
-    return db.query(Party).outerjoin(PartyParticipation, Party.id == PartyParticipation.party_id)\
+    return db.query(models.Party).outerjoin(models.PartyParticipation, models.Party.id == models.PartyParticipation.party_id)\
         .filter(
             or_(
-                Party.host_id == user_id,
-                PartyParticipation.user_id == user_id
+                models.Party.host_id == user_id,
+                models.PartyParticipation.user_id == user_id
             )
-        ).distinct().order_by(Party.date.asc()).all()
+        ).distinct().order_by(models.Party.date.asc()).all()
 
-def get_participants(db: Session, party_id: str) -> List[PartyParticipation]:
+def get_participants(db: Session, party_id: str) -> List[models.PartyParticipation]:
     """
     특정 파티의 참가자 목록을 조회합니다.
-    응답 스키마 구성을 위해 User 테이블과 조인하여 닉네임을 가져옵니다.
     """
-    # User 테이블과 조인하여 참가자 정보와 유저 정보를 함께 로드
-    participations = db.query(PartyParticipation)\
-        .join(User, PartyParticipation.user_id == User.id)\
-        .filter(PartyParticipation.party_id == party_id)\
+    participations = db.query(models.PartyParticipation)\
+        .join(models.User, models.PartyParticipation.user_id == models.User.id)\
+        .filter(models.PartyParticipation.party_id == party_id)\
         .all()
     
-    # Pydantic 스키마(PartyParticipantResponse)가 nickname을 요구하므로 동적 할당
     for p in participations:
-        # p.user가 존재하면 그 닉네임을, 아니면 알 수 없음 처리
         nickname = p.user.nickname if p.user else "Unknown"
         setattr(p, 'nickname', nickname)
         
     return participations
+
+# [핵심 수정 2] 파티 아이템(라인업) 조회 함수 추가
+def get_party_items(db: Session, party_id: str) -> List[models.ClothingItem]:
+    """
+    특정 파티에 출품되고 승인된 아이템 목록을 조회합니다.
+    """
+    # 반드시 models.ClothingItem 을 사용해야 합니다.
+    return db.query(models.ClothingItem).filter(
+        models.ClothingItem.submitted_party_id == party_id,
+        models.ClothingItem.party_submission_status == "APPROVED"
+    ).all()
 
 
 # --------------------------------------------------------------------------
@@ -98,13 +103,7 @@ def generate_invitation_code() -> str:
     chars = string.ascii_uppercase + string.digits
     return ''.join(random.choice(chars) for _ in range(6))
 
-# [수정 후] status 매개변수 추가 및 기본값 설정
-def create_party(
-    db: Session, 
-    party: PartyCreate, 
-    host_id: str, 
-    status: PartyStatusEnum = PartyStatusEnum.PENDING_APPROVAL # <--- 추가됨
-) -> Party:
+def create_party(db: Session, party: PartyCreate, host_id: str) -> models.Party:
     """
     새로운 파티를 생성합니다.
     status 파라미터를 통해 초기 상태를 설정할 수 있습니다.
@@ -112,11 +111,11 @@ def create_party(
     party_data = party.model_dump()
     invitation_code = generate_invitation_code()
 
-    db_party = Party(
+    db_party = models.Party(
         **party_data,
         id=str(uuid.uuid4()),
         host_id=host_id,
-        status=status,  # <--- 전달받은 status 사용
+        status=models.PartyStatusEnum.PENDING_APPROVAL,
         invitation_code=invitation_code
     )
     
@@ -125,33 +124,29 @@ def create_party(
     db.refresh(db_party)
     return db_party
 
-def add_participant(db: Session, party_id: str, user_id: str, nickname: str) -> PartyParticipation:
+def add_participant(db: Session, party_id: str, user_id: str, nickname: str) -> models.PartyParticipation:
     """
     파티에 참가자를 추가(신청)합니다.
     """
-    # 이미 참가했는지 확인
-    db_participation = db.query(PartyParticipation).filter(
-        PartyParticipation.party_id == party_id,
-        PartyParticipation.user_id == user_id
+    db_participation = db.query(models.PartyParticipation).filter(
+        models.PartyParticipation.party_id == party_id,
+        models.PartyParticipation.user_id == user_id
     ).first()
     
     if db_participation:
-        # 이미 존재하면 닉네임만 세팅해서 반환 (API 응답 호환성 위해)
         setattr(db_participation, 'nickname', nickname)
         return db_participation
 
-    # 새 참가 정보 생성
-    db_participation = PartyParticipation(
+    db_participation = models.PartyParticipation(
         party_id=party_id,
         user_id=user_id,
-        status=PartyParticipantStatusEnum.PENDING
+        status=models.PartyParticipantStatusEnum.PENDING
     )
     
     db.add(db_participation)
     db.commit()
     db.refresh(db_participation)
     
-    # Pydantic 응답용 닉네임 주입
     setattr(db_participation, 'nickname', nickname)
     
     return db_participation
@@ -161,11 +156,10 @@ def add_participant(db: Session, party_id: str, user_id: str, nickname: str) -> 
 # 수정 (Update)
 # --------------------------------------------------------------------------
 
-def update_party(db: Session, db_party: Party, party_in: PartyUpdate) -> Party:
+def update_party(db: Session, db_party: models.Party, party_in: PartyUpdate) -> models.Party:
     """
     파티 정보를 수정합니다.
     """
-    # exclude_unset=True를 사용하여 사용자가 보낸 필드만 업데이트
     update_data = party_in.model_dump(exclude_unset=True)
     
     for field, value in update_data.items():
@@ -176,7 +170,7 @@ def update_party(db: Session, db_party: Party, party_in: PartyUpdate) -> Party:
     db.refresh(db_party)
     return db_party
 
-def update_party_status(db: Session, db_party: Party, status: PartyStatusEnum) -> Party:
+def update_party_status(db: Session, db_party: models.Party, status: models.PartyStatusEnum) -> models.Party:
     """
     파티의 상태를 변경합니다 (승인/취소/완료 등).
     """
@@ -191,13 +185,13 @@ def update_party_status(db: Session, db_party: Party, status: PartyStatusEnum) -
 # 삭제 (Delete)
 # --------------------------------------------------------------------------
 
-def remove_participant(db: Session, party_id: str, user_id: str) -> Optional[PartyParticipation]:
+def remove_participant(db: Session, party_id: str, user_id: str) -> Optional[models.PartyParticipation]:
     """
     참가자를 파티에서 제거합니다 (나가기 또는 내보내기).
     """
-    db_participation = db.query(PartyParticipation).filter(
-        PartyParticipation.party_id == party_id,
-        PartyParticipation.user_id == user_id
+    db_participation = db.query(models.PartyParticipation).filter(
+        models.PartyParticipation.party_id == party_id,
+        models.PartyParticipation.user_id == user_id
     ).first()
 
     if db_participation:
@@ -208,17 +202,17 @@ def remove_participant(db: Session, party_id: str, user_id: str) -> Optional[Par
     return None
 
 
-def check_in_participant(db: Session, party_id: str, user_id: str) -> Optional[PartyParticipation]:
+def check_in_participant(db: Session, party_id: str, user_id: str) -> Optional[models.PartyParticipation]:
     """
     QR 코드를 통해 파티 참가자의 상태를 'ATTENDED'로 변경합니다 (체크인).
     """
-    participation = db.query(PartyParticipation).filter(
-        PartyParticipation.party_id == party_id,
-        PartyParticipation.user_id == user_id
+    participation = db.query(models.PartyParticipation).filter(
+        models.PartyParticipation.party_id == party_id,
+        models.PartyParticipation.user_id == user_id
     ).first()
 
     if participation:
-        participation.status = PartyParticipantStatusEnum.ATTENDED
+        participation.status = models.PartyParticipantStatusEnum.ATTENDED
         db.commit()
         db.refresh(participation)
         return participation

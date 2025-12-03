@@ -1,9 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { ClothingCategory, Party, GoodbyeTag, HelloTag } from '../types';
+import { ClothingCategory, MeterialCategory, Party, GoodbyeTag, HelloTag } from '../types';
 
 interface UploadPageProps {
   onItemAdd: (
-    item: { name: string, description: string, category: ClothingCategory, size: string, imageUrl: string },
+    item: { name: string, description: string, category: ClothingCategory, size: string, imageUrl: string , material_type: MeterialCategory; weight_kg: number; },
     options: {
         goodbyeTag?: GoodbyeTag;
         helloTag?: HelloTag;
@@ -18,6 +18,8 @@ const UploadPage: React.FC<UploadPageProps> = ({ onItemAdd, acceptedParties }) =
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<ClothingCategory>('티셔츠');
   const [size, setSize] = useState('');
+  const [material_type, setMaterial] = useState('Cotton');
+  const [weight_kg, setWeight] = useState('');     
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +76,7 @@ const UploadPage: React.FC<UploadPageProps> = ({ onItemAdd, acceptedParties }) =
         return;
     }
 
-    const itemData = { name, description, category, size, imageUrl: imagePreview };
+    const itemData = { name, description, category, size, imageUrl: imagePreview ,material_type, weight_kg  };
     
     if (tagType === 'GOODBYE') {
         const partyId = selectedParty === 'GENERAL' ? null : selectedParty;
@@ -135,6 +137,34 @@ const UploadPage: React.FC<UploadPageProps> = ({ onItemAdd, acceptedParties }) =
                     <label htmlFor="size" className="block text-sm font-medium text-brand-text">사이즈</label>
                     <input type="text" id="size" value={size} onChange={e => setSize(e.target.value)} className={standardInputClasses} placeholder="예: M, 95" required />
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                 <div>
+                    <label htmlFor="material" className="block text-sm font-medium text-brand-text">옷 재질</label>
+                    <select
+                        id="material"
+                        value={material_type}
+                        onChange={e => setMaterial(e.target.value)}
+                        className={standardInputClasses}
+                        required
+                    >
+                        <option value="Cotton">Cotton(면)</option>
+                        <option value="Polyester">Polyester(폴리에스터)</option>
+                        <option value="Nylon">Nylon(나일론)</option>
+                        <option value="Wool(울)">Wool(울)</option>
+                        <option value="Viscose">Viscose(비스코스)</option>
+                        <option value="Linen">Linen(린넨)</option>
+                        <option value="Silk">Silk(실크)</option>
+                        <option value="Acrylic">Acrylic(아크릴)</option>
+                        <option value="Lyocell">Lyocell(라이오셀)</option>
+                        <option value="Modal">Modal(모달)</option>
+                        <option value="Other">Other(기타)</option>
+                    </select>
+                </div>
+                 <div>
+                    <label htmlFor="weight" className="block text-sm font-medium text-brand-text">무게</label>
+                    <input type="text" id="weight" value={weight_kg} onChange={e => setWeight(e.target.value)} className={standardInputClasses} placeholder="예: 500g, 가벼움" />
+                 </div>
               </div>
             </div>
           </div>

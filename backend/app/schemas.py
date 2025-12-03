@@ -1,8 +1,9 @@
 from pydantic import BaseModel, EmailStr, field_validator, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from pydantic import BaseModel, computed_field
 import datetime
 import enum
+from decimal import Decimal # Numeric 타입을 위해 Decimal 임포트 필요
 
 # --- Enums ---
 class ClothingCategoryEnum(str, enum.Enum):
@@ -74,39 +75,68 @@ class HelloTagResponse(HelloTagBase):
 
 # --- ClothingItem Schemas ---
 
+# [Base] 공통 필드 (ID 없음)
 class ClothingItemBase(BaseModel):
     name: str
     description: str
-    category: ClothingCategoryEnum
+    category: str
     size: str
     image_url: str
 
+# [Create] 생성할 때 (ID 없음 -> Base 상속)
 class ClothingItemCreate(ClothingItemBase):
-    pass
+    weight_kg: float
+    material_type: str
 
+# [Update] 수정할 때 (모든 필드 Optional)
 class ClothingItemUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    category: Optional[ClothingCategoryEnum] = None
+    category: Optional[str] = None
     size: Optional[str] = None
     image_url: Optional[str] = None
     is_listed_for_exchange: Optional[bool] = None
+    submitted_party_id: Optional[str] = None
+    party_submission_status: Optional[str] = None
 
+# [Response] 조회할 때 (ID 필수! + DB 정보 포함)
+# ★★★ 여기가 바로 ClothingItemResponse 입니다 ★★★
 class ClothingItemResponse(ClothingItemBase):
     id: str
     user_id: str
-    user_nickname: str
-    is_listed_for_exchange: bool
+    
+    # DB 모델에서 nullable=False인 필드들 (필수로 다시 명시)
+    name: str 
+    category: str # DBEnum(ClothingCategoryEnum)의 문자열 표현
+    image_url: str
+    credit_amount: int
+    
+    # Numeric 타입 처리 (Decimal 사용 권장)
+    weight_kg: Decimal = Field(..., description="아이템의 무게 (kg)")
+    material_type: str # DBEnum(MaterialTypeEnum)의 문자열 표현
+    environmental_burden_score: Decimal
+    carbon_saved: Decimal
+    water_saved: Decimal
+    
+    # DB에서 nullable=False 이지만, user_nickname은 이미 포함되어 있음 (Optional 제거 필요)
+    user_nickname: str # DB에서 nullable=False이므로 Optional 제거
+    
+    # 관계 필드 (이미 Optional로 잘 정의되어 있음)
+    hello_tag: Optional[HelloTagResponse] = None
+    goodbye_tag: Optional[GoodbyeTagResponse] = None
+    
+    # 기본값이 있는 필드 (DB와 Pydantic 모두에 명시되어야 함)
+    is_listed_for_exchange: bool = False
+    
     party_submission_status: Optional[PartySubmissionStatusEnum] = None
     submitted_party_id: Optional[str] = None
-    
-    goodbye_tag: Optional[GoodbyeTagResponse] = None
-    hello_tag: Optional[HelloTagResponse] = None
-
     class Config:
         from_attributes = True
-
-
+        json_encoders = {
+            Decimal: lambda v: float(v)
+        }
+# (혹시 몰라 ClothingItem이라는 이름으로도 참조 가능하게 별칭 추가)
+ClothingItem = ClothingItemResponse
 # --- User Schemas ---
 
 class UserBase(BaseModel):
@@ -392,6 +422,7 @@ class PartyBase(BaseModel):
     location: str
     image_url: str
     details: List[str]
+    is_active: bool = False  # 교환 가능 상태 여부
 
 class PartyCreate(PartyBase):
     pass
@@ -419,6 +450,10 @@ class PartyResponse(PartyBase):
 
     class Config:
         from_attributes = True
+
+# [추가] 아이템 교환 요청용 스키마
+class ItemExchangeRequest(BaseModel):
+    hello_tag: HelloTagBase  # 교환 시 작성할 헬로 태그 정보
 
 
 # --- Admin Schemas (Read-only) ---
@@ -498,3 +533,4 @@ class Post(PostBase):
 
     class Config:
         from_attributes = True  # SQLAlchemy 모델에서 속성 읽어오기
+

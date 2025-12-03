@@ -24,6 +24,7 @@ interface MyPageProps {
   onCancelPartySubmit: (itemId: string) => void;
   onOffsetCredit: (amount: number) => boolean;
   acceptedUpcomingParties: Party[];
+  onDeleteItem: (itemId: string) => void;
 }
 
 const SectionButton: React.FC<{
@@ -69,14 +70,65 @@ const CreditRow: React.FC<{ credit: Credit }> = ({ credit }) => {
     );
 };
 
-const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats, clothingItems, credits, parties, onToggleListing, setPage, onSelectHostedParty, onPartySubmit, onCancelPartySubmit, onOffsetCredit, acceptedUpcomingParties }) => {
+// [1] 파티 선택 모달 컴포넌트 추가
+const PartySelectionModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    parties: Party[];
+    onSubmit: (partyId: string) => void;
+}> = ({ isOpen, onClose, parties, onSubmit }) => {
+    const [selectedPartyId, setSelectedPartyId] = useState<string>(parties.length > 0 ? parties[0].id : '');
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in p-4" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md relative" onClick={e => e.stopPropagation()}>
+                <button onClick={onClose} className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 text-2xl">&times;</button>
+                <h3 className="text-xl font-bold mb-4 text-brand-text">출품할 파티 선택</h3>
+                <p className="text-sm text-brand-text/70 mb-6">어떤 파티에 이 옷을 내놓으시겠어요?</p>
+                
+                <div className="space-y-3 mb-6 max-h-60 overflow-y-auto">
+                    {parties.map(party => (
+                        <label key={party.id} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${selectedPartyId === party.id ? 'border-brand-primary bg-brand-primary/5' : 'border-stone-200 hover:bg-stone-50'}`}>
+                            <input 
+                                type="radio" 
+                                name="partySelect" 
+                                value={party.id} 
+                                checked={selectedPartyId === party.id}
+                                onChange={(e) => setSelectedPartyId(e.target.value)}
+                                className="w-4 h-4 text-brand-primary focus:ring-brand-primary border-gray-300"
+                            />
+                            <div className="ml-3">
+                                <p className="font-semibold text-brand-text">{party.title}</p>
+                                <p className="text-xs text-brand-text/60">{party.date} · {party.location}</p>
+                            </div>
+                        </label>
+                    ))}
+                </div>
+
+                <div className="flex justify-end gap-2">
+                    <button onClick={onClose} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-lg font-medium">취소</button>
+                    <button 
+                        onClick={() => { onSubmit(selectedPartyId); onClose(); }}
+                        className="px-6 py-2 bg-brand-primary text-white rounded-lg font-bold hover:bg-brand-primary-dark transition-colors"
+                    >
+                        선택 완료
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats, clothingItems, credits, parties, onToggleListing, setPage, onSelectHostedParty, onPartySubmit, onCancelPartySubmit, onOffsetCredit, acceptedUpcomingParties , onDeleteItem }) => {
   const [activeSection, setActiveSection] = useState<MyPageSection>('CLOSET');
   const [qrModalParty, setQrModalParty] = useState<Party | null>(null);
   const [neighborSearchTerm, setNeighborSearchTerm] = useState('');
   const [burnAmount, setBurnAmount] = useState('');
   const [certificateData, setCertificateData] = useState<{ amount: number } | null>(null);
   const certificateRef = useRef<HTMLDivElement>(null);
-
+  const [submissionItemId, setSubmissionItemId] = useState<string | null>(null);
 
   const totalCredits = credits.reduce((sum, credit) => {
     return credit.type.startsWith('EARNED') ? sum + credit.amount : sum - credit.amount;
@@ -167,7 +219,17 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
             {clothingItems.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                     {clothingItems.map(item => (
-                        <div key={item.id} className="border rounded-lg p-3 flex flex-col bg-white">
+                        <div key={item.id} className="border rounded-lg p-3 flex flex-col bg-white relative group">
+                            <button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDeleteItem(item.id);
+                                }}
+                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center bg-white/80 rounded-full text-stone-400 hover:text-red-500 hover:bg-white shadow-sm transition-all z-10 opacity-0 group-hover:opacity-100" // opacity 추가로 호버 효과 강화
+                                title="삭제하기"
+                            >
+                                <i className="fa-solid fa-trash-can"></i>
+                            </button>
                             <img src={item.imageUrl} alt={item.name} className="w-full h-48 object-cover rounded-md mb-2" />
                             <div className="flex-grow">
                                 <p className="font-semibold truncate text-brand-text">{item.name}</p>
@@ -175,6 +237,16 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
                             </div>
                             
                             <div className="mt-3 w-full flex flex-col space-y-2">
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDeleteItem(item.id);
+                                    }}
+                                    className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center bg-white/80 rounded-full text-stone-400 hover:text-red-500 hover:bg-white shadow-sm transition-all z-10"
+                                    title="삭제하기"
+                                >
+                                    <i className="fa-solid fa-trash-can"></i>
+                                </button>
                                 {item.helloTag ? (
                                     <>
                                         <div className="text-center text-xs font-bold text-blue-600 bg-blue-100 py-1 rounded-full">HELLO 태그 아이템</div>
@@ -192,7 +264,6 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
                                 ) : (
                                     <>
                                         <div className="text-center text-xs font-bold text-purple-600 bg-purple-100 py-1 rounded-full">GOODBYE 태그 아이템</div>
-                                        {/* [▼▼▼ 추가할 코드 시작 ▼▼▼] */}
                                         <button
                                             onClick={() => onToggleListing(item.id)}
                                             className={`w-full font-bold py-2 px-4 rounded-full transition-colors ${
@@ -203,29 +274,22 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
                                         >
                                             {item.isListedForExchange ? '프로필에서 숨기기' : '프로필에 표시하기'}
                                         </button>
-                                        {/* [▲▲▲ 추가할 코드 끝 ▲▲▲] */}
                                         {item.partySubmissionStatus ? (
                                             <>
                                                 <p className={`text-center text-sm font-semibold p-2 rounded-md ${submissionStatusInfo[item.partySubmissionStatus].color}`}>
                                                     {submissionStatusInfo[item.partySubmissionStatus].text}
                                                 </p>
-                                                {(item.partySubmissionStatus === 'PENDING' || item.partySubmissionStatus === 'REJECTED') && (
-                                                    <button
+                                                <button
                                                         onClick={() => onCancelPartySubmit(item.id)}
                                                         className="w-full font-bold py-2 px-4 rounded-full transition-colors bg-gray-500 text-white hover:bg-gray-600"
                                                     >
                                                         파티 출품 취소
-                                                    </button>
-                                                )}
+                                                </button>
                                             </>
                                         ) : (
                                             acceptedUpcomingParties.length > 0 ? (
                                                 <button
-                                                    onClick={() => {
-                                                        if (window.confirm(`'${acceptedUpcomingParties[0].title}' 파티에 이 옷을 출품하시겠습니까?`)) {
-                                                            onPartySubmit(item.id, acceptedUpcomingParties[0].id)
-                                                        }
-                                                    }}
+                                                    onClick={() => setSubmissionItemId(item.id)}
                                                     className="w-full font-bold py-2 px-4 rounded-full transition-colors bg-brand-primary text-white hover:bg-brand-primary-dark"
                                                 >
                                                     <i className="fa-solid fa-glass-cheers mr-2"></i>
@@ -464,6 +528,16 @@ const MyPage: React.FC<MyPageProps> = ({ user, allUsers, onToggleNeighbor, stats
   return (
     <>
       {qrModalParty && <QRCodeModal partyTitle={qrModalParty.title} userName={user.nickname} onClose={() => setQrModalParty(null)} />}
+      <PartySelectionModal 
+          isOpen={!!submissionItemId}
+          onClose={() => setSubmissionItemId(null)}
+          parties={acceptedUpcomingParties}
+          onSubmit={(partyId) => {
+              if (submissionItemId) {
+                  onPartySubmit(submissionItemId, partyId);
+              }
+          }}
+      />
       {certificateData && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in p-4">
             <div className="bg-stone-50 p-6 sm:p-8 rounded-2xl shadow-2xl text-center">
