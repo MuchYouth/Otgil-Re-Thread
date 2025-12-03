@@ -77,19 +77,30 @@ const MakerRegistrationModal: React.FC<{
         specialty: '',
         location: '',
         bio: '',
-        imageUrl: '',
     });
+    const [imageFile, setImageFile] = useState<File | null>(null);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            setImageFile(e.target.files[0]);
+        }
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSubmit(formData);
+        if (!imageFile) {
+            alert("이미지를 업로드해주세요.");
+            return;
+        }
+        onSubmit({ ...formData, imageFile });
         onClose();
-        setFormData({ name: '', specialty: '', location: '', bio: '', imageUrl: '' });
+        setFormData({ name: '', specialty: '', location: '', bio: '' });
+        setImageFile(null);
     };
 
     if (!isOpen) return null;
@@ -115,8 +126,19 @@ const MakerRegistrationModal: React.FC<{
                         <input type="text" name="location" id="location" value={formData.location} onChange={handleChange} className={standardInputClasses} required />
                     </div>
                     <div>
-                        <label htmlFor="imageUrl" className="block text-sm font-medium text-brand-text">프로필 이미지 URL</label>
-                        <input type="url" name="imageUrl" id="imageUrl" value={formData.imageUrl} onChange={handleChange} className={standardInputClasses} required />
+                        <label className="block text-sm font-medium text-brand-text">프로필 이미지</label>
+                        <input 
+                            type="file" 
+                            accept="image/*"
+                            onChange={handleFileChange} 
+                            className="mt-1 block w-full text-sm text-stone-500
+                                file:mr-4 file:py-2 file:px-4
+                                file:rounded-full file:border-0
+                                file:text-sm file:font-semibold
+                                file:bg-brand-primary/10 file:text-brand-primary
+                                hover:file:bg-brand-primary/20"
+                            required 
+                        />
                     </div>
                     <div>
                         <label htmlFor="bio" className="block text-sm font-medium text-brand-text">소개</label>

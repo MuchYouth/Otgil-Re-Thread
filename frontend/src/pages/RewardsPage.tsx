@@ -22,7 +22,7 @@ const RewardRegistrationModal: React.FC<{
         imageUrl: '',
         type: 'GOODS' as 'GOODS' | 'SERVICE',
     });
-
+    const [imageFile, setImageFile] = useState<File | null>(null); // 파일 상태 추가
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ 
@@ -31,11 +31,23 @@ const RewardRegistrationModal: React.FC<{
         }));
     };
 
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            setImageFile(e.target.files[0]);
+        }
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSubmit(formData);
+        if (!imageFile) {
+            alert("이미지를 업로드해주세요.");
+            return;
+        }
+        // 이미지 파일도 함께 전송
+        onSubmit({ ...formData, imageFile });
         onClose();
-        setFormData({ name: '', description: '', cost: 0, imageUrl: '', type: 'GOODS' });
+        setFormData({ name: '', description: '', cost: 0, type: 'GOODS' });
+        setImageFile(null);
     };
 
     if (!isOpen) return null;
@@ -61,8 +73,19 @@ const RewardRegistrationModal: React.FC<{
                         <input type="number" name="cost" id="cost" value={formData.cost} onChange={handleChange} className={standardInputClasses} min="0" required />
                     </div>
                     <div>
-                        <label htmlFor="imageUrl" className="block text-sm font-medium text-brand-text">이미지 URL</label>
-                        <input type="url" name="imageUrl" id="imageUrl" value={formData.imageUrl} onChange={handleChange} className={standardInputClasses} required />
+                        <label className="block text-sm font-medium text-brand-text">이미지 업로드</label>
+                        <input 
+                            type="file" 
+                            accept="image/*"
+                            onChange={handleFileChange} 
+                            className="mt-1 block w-full text-sm text-stone-500
+                                file:mr-4 file:py-2 file:px-4
+                                file:rounded-full file:border-0
+                                file:text-sm file:font-semibold
+                                file:bg-brand-primary/10 file:text-brand-primary
+                                hover:file:bg-brand-primary/20"
+                            required 
+                        />
                     </div>
                     <div>
                         <label htmlFor="type" className="block text-sm font-medium text-brand-text">유형</label>

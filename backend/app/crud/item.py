@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 
 from app.models import ClothingItem, PartySubmissionStatusEnum, GoodbyeTag, HelloTag
@@ -7,11 +7,22 @@ from app.schemas import ClothingItemCreate, ClothingItemUpdate, GoodbyeTagCreate
 
 def get_item(db: Session, item_id: str) -> ClothingItem | None:
     """ID로 단일 아이템을 조회합니다."""
-    return db.query(ClothingItem).filter(ClothingItem.id == item_id).first()
+    # [수정] 태그 정보를 함께 로드하도록 옵션 추가
+    return db.query(ClothingItem)\
+        .options(
+            joinedload(ClothingItem.hello_tag),
+            joinedload(ClothingItem.goodbye_tag)
+        )\
+        .filter(ClothingItem.id == item_id).first()
 
 def get_items_for_exchange(db: Session, skip: int = 0, limit: int = 20) -> List[ClothingItem]:
     """교환을 위해 등록된 아이템 목록을 조회합니다."""
+    # [수정] 태그 정보를 함께 로드하도록 옵션 추가
     return db.query(ClothingItem)\
+        .options(
+            joinedload(ClothingItem.hello_tag),
+            joinedload(ClothingItem.goodbye_tag)
+        )\
         .filter(ClothingItem.is_listed_for_exchange == True)\
         .offset(skip)\
         .limit(limit)\
@@ -19,7 +30,12 @@ def get_items_for_exchange(db: Session, skip: int = 0, limit: int = 20) -> List[
 
 def get_items_by_user(db: Session, user_id: str) -> List[ClothingItem]:
     """특정 사용자가 등록한 모든 아이템 목록을 조회합니다."""
+    # [수정] 태그 정보를 함께 로드하도록 옵션 추가
     return db.query(ClothingItem)\
+        .options(
+            joinedload(ClothingItem.hello_tag),
+            joinedload(ClothingItem.goodbye_tag)
+        )\
         .filter(ClothingItem.user_id == user_id)\
         .order_by(ClothingItem.id.desc())\
         .all()
@@ -116,3 +132,15 @@ def create_hello_tag(db: Session, db_item: ClothingItem, tag_in: HelloTagCreate)
     db.commit()
     db.refresh(db_item)
     return db_item
+
+def get_items_by_party(db: Session, party_id: str):
+    # [수정] 여기도 태그 로딩 추가
+    return db.query(ClothingItem)\
+        .options(
+            joinedload(ClothingItem.hello_tag),
+            joinedload(ClothingItem.goodbye_tag)
+        )\
+        .filter(
+            ClothingItem.submitted_party_id == party_id,
+            ClothingItem.party_submission_status == "APPROVED"
+        ).all()

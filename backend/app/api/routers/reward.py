@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import os
+import uuid
+import io
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import List
-import uuid
-import datetime
+from PIL import Image
 
 from app.api.deps import get_db, get_current_user, get_current_admin_user
 from app.schemas import RewardResponse, RewardCreate, RewardUpdate
@@ -10,6 +12,19 @@ from app.models import User, Credit, CreditTypeEnum
 from app.crud import reward as crud_reward
 
 router = APIRouter()
+
+# 이미지 저장 헬퍼 함수 (필요한 경우 utils.py로 분리 권장)
+async def save_upload_file(upload_file: UploadFile, destination: str) -> str:
+    os.makedirs(destination, exist_ok=True)
+    filename = f"{uuid.uuid4().hex}.jpg"
+    file_path = os.path.join(destination, filename)
+    
+    # 이미지 압축 및 저장
+    image = Image.open(io.BytesIO(await upload_file.read()))
+    image = image.convert("RGB")
+    image.save(file_path, format="JPEG", quality=70)
+    
+    return f"/{destination}/{filename}"
 
 @router.get("/", response_model=List[RewardResponse], summary="리워드 목록 조회")
 def read_rewards(db: Session = Depends(get_db)):
@@ -19,11 +34,27 @@ def read_rewards(db: Session = Depends(get_db)):
 # --- 관리자 전용 API ---
 
 @router.post("/", response_model=RewardResponse, status_code=status.HTTP_201_CREATED, summary="리워드 생성 (관리자)")
-def create_reward(
-    reward_in: RewardCreate,
+async def create_reward(
+    name: str = Form(...),
+    description: str = Form(...),
+    cost: int = Form(...),
+    type: str = Form(...),  # GOODS or SERVICE
+    image: UploadFile = File(...),
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_current_admin_user)
 ):
+    # 1. 이미지 저장
+    image_url = await save_upload_file(image, "static/rewards")
+    
+    # 2. 스키마 생성
+    reward_in = RewardCreate(
+        name=name,
+        description=description,
+        cost=cost,
+        type=type,
+        image_url=image_url
+    )
+    
     return crud_reward.create_reward(db, reward_in)
 
 @router.patch("/{reward_id}", response_model=RewardResponse, summary="리워드 수정 (관리자)")

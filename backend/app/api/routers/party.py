@@ -60,10 +60,20 @@ def create_party(
     current_user: User = Depends(get_current_user)
 ):
     """
-    새로운 파티 호스팅을 신청합니다. (생성 시 'PENDING_APPROVAL' 상태)
+    새로운 파티 호스팅을 신청합니다.
+    - **관리자**: 즉시 승인됨 ('UPCOMING')
+    - **일반 사용자**: 승인 대기 ('PENDING_APPROVAL')
     """
-    return crud_party.create_party(db=db, party=party_in, host_id=str(current_user.id))
+    # 관리자 권한 확인 후 초기 상태 결정
+    initial_status = PartyStatusEnum.UPCOMING if current_user.is_admin else PartyStatusEnum.PENDING_APPROVAL
 
+    # 수정된 crud 함수 호출 (status 인자 전달)
+    return crud_party.create_party(
+        db=db, 
+        party=party_in, 
+        host_id=str(current_user.id),
+        status=initial_status
+    )
 
 # 3. 파티 참가 신청
 @router.post(

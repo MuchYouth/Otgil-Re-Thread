@@ -98,21 +98,26 @@ def generate_invitation_code() -> str:
     chars = string.ascii_uppercase + string.digits
     return ''.join(random.choice(chars) for _ in range(6))
 
-def create_party(db: Session, party: PartyCreate, host_id: str) -> Party:
+# [수정 후] status 매개변수 추가 및 기본값 설정
+def create_party(
+    db: Session, 
+    party: PartyCreate, 
+    host_id: str, 
+    status: PartyStatusEnum = PartyStatusEnum.PENDING_APPROVAL # <--- 추가됨
+) -> Party:
     """
-    새로운 파티 호스팅을 신청합니다 (기본 상태: PENDING_APPROVAL).
+    새로운 파티를 생성합니다.
+    status 파라미터를 통해 초기 상태를 설정할 수 있습니다.
     """
     party_data = party.model_dump()
-    
-    # [수정] 초대 코드 생성 로직 추가
     invitation_code = generate_invitation_code()
 
     db_party = Party(
         **party_data,
         id=str(uuid.uuid4()),
         host_id=host_id,
-        status=PartyStatusEnum.PENDING_APPROVAL,
-        invitation_code=invitation_code # [수정] DB에 저장할 때 필수로 들어감
+        status=status,  # <--- 전달받은 status 사용
+        invitation_code=invitation_code
     )
     
     db.add(db_party)
