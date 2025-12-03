@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Page, User, ClothingItem, ImpactStats, Story, Credit, Reward, PerformanceReport, Comment, Party, Maker, MakerProduct, PartyParticipantStatus, GoodbyeTag, HelloTag, ClothingCategory } from './types';
+import { Page, User, ClothingItem, ImpactStats, Story, Credit, Reward, PerformanceReport, Comment, Party, Maker, MakerProduct, PartyParticipantStatus, GoodbyeTag, HelloTag, ClothingCategory, MeterialCategory } from './types';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import HomePage from './pages/HomePage';
@@ -516,6 +516,12 @@ const App: React.FC = () => {
                 isListedForExchange: item.is_listed_for_exchange,
                 partySubmissionStatus: item.party_submission_status,
                 submittedPartyId: item.submitted_party_id,
+                material_type: item.material_type,
+                environmental_burden_score: item.environmental_burden_score,
+                credit_amount: item.credit_amount,
+                weight_kg: item.weight_kg,
+                waterSaved: item.water_saved,
+                co2Reduced: item.carbon_saved,
                 goodbyeTag: item.goodbye_tag ? {
                     metWhen: item.goodbye_tag.met_when,
                     metWhere: item.goodbye_tag.met_where,
@@ -675,7 +681,10 @@ const App: React.FC = () => {
                 description: itemInfo.description,
                 category: itemInfo.category,
                 size: itemInfo.size,
-                image_url: itemInfo.imageUrl // 백엔드는 image_url을 원함
+                image_url: itemInfo.imageUrl, // 백엔드는 image_url을 원함
+                weight_kg: itemInfo.weight_kg,
+                material_type: itemInfo.material_type
+
             };
 
             // https://www.wordreference.com/koen/%ED%99%95%EC%9D%B8 /items/add 가 맞습니다.
@@ -1344,11 +1353,9 @@ const App: React.FC = () => {
         const userItems = clothingItems.filter(item => item.userId === currentUser.id);
         
         return userItems.reduce((acc, item) => {
-            const factors = IMPACT_FACTORS[item.category];
-            if (factors) {
-                acc.waterSaved += factors.water;
-                acc.co2Reduced += factors.co2;
-            }
+            acc.waterSaved += item.waterSaved ?? 0;
+            acc.co2Reduced += item.co2Reduced ?? 0;
+
             return acc;
         }, { itemsExchanged: userItems.length, waterSaved: 0, co2Reduced: 0 });
     }, [currentUser, clothingItems]);

@@ -297,8 +297,7 @@ def exchange_item(
         if party and not party.is_active:
              raise HTTPException(status_code=400, detail="This party is not active for exchange yet.")
 
-    # 4. 크레딧 처리 (판매자에게만 지급)
-    EXCHANGE_REWARD = 1000
+    EXCHANGE_REWARD = item.credit_amount
     previous_owner_id = item.user_id
 
     # [수정] 구매자 차감 로직 삭제됨

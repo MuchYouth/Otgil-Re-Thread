@@ -41,35 +41,59 @@ const TwentyOnePercentPartyPage: React.FC<TwentyOnePercentPartyPageProps> = ({ p
                 if (response.ok) {
                     const data = await response.json();
                     
-                    // 백엔드 데이터(snake_case) -> 프론트엔드 타입(camelCase) 매핑
-                    const formattedItems: ClothingItem[] = data.map((item: any) => ({
-                        id: item.id,
-                        name: item.name,
-                        description: item.description,
-                        category: item.category,
-                        size: item.size,
-                        imageUrl: item.image_url,
-                        // ▼▼▼ [확인] 이 부분이 정확히 연결되어야 합니다! ▼▼▼
-                        userId: item.user_id,             // user_id -> userId
-                        userNickname: item.user_nickname, // user_nickname -> userNickname
-                        // ▲▲▲ --------------------------------------- ▲▲▲
-                        isListedForExchange: item.is_listed_for_exchange,
-                        partySubmissionStatus: item.party_submission_status,
-                        submittedPartyId: item.submitted_party_id,
-                        goodbyeTag: item.goodbye_tag ? {
-                            metWhen: item.goodbye_tag.met_when,
-                            metWhere: item.goodbye_tag.met_where,
-                            whyGot: item.goodbye_tag.why_got,
-                            wornCount: item.goodbye_tag.worn_count,
-                            whyLetGo: item.goodbye_tag.why_let_go,
-                            finalMessage: item.goodbye_tag.final_message
-                        } : undefined,
-                        helloTag: item.hello_tag ? {
-                            receivedFrom: item.hello_tag.received_from,
-                            receivedAt: item.hello_tag.received_at,
-                            firstImpression: item.hello_tag.first_impression,
-                            helloMessage: item.hello_tag.hello_message
-                        } : undefined
+                  // 백엔드 데이터(snake_case) -> 프론트엔드 타입(camelCase) 매핑
+                  const formattedItems: ClothingItem[] = data.map((item: any) => ({
+                    id: item.id,
+                    name: item.name,
+                    description: item.description,
+                    category: item.category,
+                    size: item.size,
+                    // [1] image_url -> imageUrl (camelCase)
+                    imageUrl: item.image_url, 
+                    
+                    // [1] user_id -> userId (camelCase)
+                    userId: item.user_id,
+                    // [1] user_nickname -> userNickname (camelCase)
+                    userNickname: item.user_nickname,
+                    
+                    // [1] is_listed_for_exchange -> isListedForExchange (camelCase)
+                    isListedForExchange: item.is_listed_for_exchange,
+                    partySubmissionStatus: item.party_submission_status,
+                    submittedPartyId: item.submitted_party_id,
+
+                    // [2] credit_amount (이름 동일, 타입은 number)
+                    credit_amount: item.credit_amount,
+                    // [2, 3] environmental_burden_score (Number로 변환)
+                    environmental_burden_score: item.environmental_burden_score ? Number(item.environmental_burden_score) : undefined,
+                    // [2] material_type (이름 동일)
+                    material_type: item.material_type,
+
+                    // [2, 3] weight_kg (Number로 변환. 이름은 동일하게 유지하는 것이 인터페이스와 일치)
+                    weight_kg: item.weight_kg ? Number(item.weight_kg) : undefined,
+
+                    // [2, 3] carbon_saved -> co2Reduced (이름 변경, Number로 변환)
+                    co2Reduced: item.carbon_saved ? Number(item.carbon_saved) : undefined,
+                    // [2, 3] water_saved -> waterSaved (이름 변경, Number로 변환)
+                    waterSaved: item.water_saved ? Number(item.water_saved) : undefined,
+
+                    // [1] goodbye_tag 내부 필드 매핑
+                    goodbyeTag: item.goodbye_tag ? {
+                        metWhen: item.goodbye_tag.met_when,
+                        metWhere: item.goodbye_tag.met_where,
+                        whyGot: item.goodbye_tag.why_got,
+                        wornCount: item.goodbye_tag.worn_count,
+                        whyLetGo: item.goodbye_tag.why_let_go,
+                        finalMessage: item.goodbye_tag.final_message
+                    } : undefined,
+                      
+                      // [1] hello_tag 내부 필드 매핑
+                      helloTag: item.hello_tag ? {
+                          receivedFrom: item.hello_tag.received_from,
+                          receivedAt: item.hello_tag.received_at,
+                          // first_impression -> firstImpression (camelCase)
+                          firstImpression: item.hello_tag.first_impression, 
+                          helloMessage: item.hello_tag.hello_message
+                      } : undefined
                     }));
 
                     setLineupItems(formattedItems);
@@ -220,7 +244,7 @@ const TwentyOnePercentPartyPage: React.FC<TwentyOnePercentPartyPageProps> = ({ p
                                 className="bg-brand-primary text-white font-bold py-3 px-8 rounded-full shadow-xl transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:scale-105 hover:bg-brand-primary-dark"
                             >
                                 <i className="fa-solid fa-right-left mr-2"></i>
-                                교환하기 (1,000 OL)
+                                교환하기 ({item.credit_amount} OL)
                             </button>
                         </div>
                     )}

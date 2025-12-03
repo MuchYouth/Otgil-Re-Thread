@@ -1,8 +1,9 @@
 from pydantic import BaseModel, EmailStr, field_validator, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from pydantic import BaseModel, computed_field
 import datetime
 import enum
+from decimal import Decimal # Numeric 타입을 위해 Decimal 임포트 필요
 
 # --- Enums ---
 class ClothingCategoryEnum(str, enum.Enum):
@@ -84,7 +85,8 @@ class ClothingItemBase(BaseModel):
 
 # [Create] 생성할 때 (ID 없음 -> Base 상속)
 class ClothingItemCreate(ClothingItemBase):
-    pass
+    weight_kg: float
+    material_type: str
 
 # [Update] 수정할 때 (모든 필드 Optional)
 class ClothingItemUpdate(BaseModel):
@@ -100,20 +102,39 @@ class ClothingItemUpdate(BaseModel):
 # [Response] 조회할 때 (ID 필수! + DB 정보 포함)
 # ★★★ 여기가 바로 ClothingItemResponse 입니다 ★★★
 class ClothingItemResponse(ClothingItemBase):
-    id: str  # 필수
-    user_id: str # 필수
-    user_nickname: Optional[str] = None
+    id: str
+    user_id: str
     
-    is_listed_for_exchange: bool = False
-    submitted_party_id: Optional[str] = None
-    party_submission_status: Optional[str] = None
+    # DB 모델에서 nullable=False인 필드들 (필수로 다시 명시)
+    name: str 
+    category: str # DBEnum(ClothingCategoryEnum)의 문자열 표현
+    image_url: str
+    credit_amount: int
     
+    # Numeric 타입 처리 (Decimal 사용 권장)
+    weight_kg: Decimal = Field(..., description="아이템의 무게 (kg)")
+    material_type: str # DBEnum(MaterialTypeEnum)의 문자열 표현
+    environmental_burden_score: Decimal
+    carbon_saved: Decimal
+    water_saved: Decimal
+    
+    # DB에서 nullable=False 이지만, user_nickname은 이미 포함되어 있음 (Optional 제거 필요)
+    user_nickname: str # DB에서 nullable=False이므로 Optional 제거
+    
+    # 관계 필드 (이미 Optional로 잘 정의되어 있음)
     hello_tag: Optional[HelloTagResponse] = None
     goodbye_tag: Optional[GoodbyeTagResponse] = None
-
+    
+    # 기본값이 있는 필드 (DB와 Pydantic 모두에 명시되어야 함)
+    is_listed_for_exchange: bool = False
+    
+    party_submission_status: Optional[PartySubmissionStatusEnum] = None
+    submitted_party_id: Optional[str] = None
     class Config:
         from_attributes = True
-
+        json_encoders = {
+            Decimal: lambda v: float(v)
+        }
 # (혹시 몰라 ClothingItem이라는 이름으로도 참조 가능하게 별칭 추가)
 ClothingItem = ClothingItemResponse
 # --- User Schemas ---
